@@ -87,6 +87,12 @@ public:
   int hashfull() const;
   void resize(size_t mbSize);
   void clear();
+  // HypeBeast: exchange tables with another instance (O(1), no copying).
+  void swap(TranspositionTable& o) {
+    std::swap(clusterCount, o.clusterCount);
+    std::swap(table, o.table);
+    std::swap(generation8, o.generation8);
+  }
 
   TTEntry* first_entry(const Key key) const {
     return &table[mul_hi64(key, clusterCount)].entry[0];

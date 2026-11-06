@@ -103,6 +103,13 @@ typedef std::unique_ptr<std::deque<StateInfo>> StateListPtr;
 /// traversing the search tree.
 class Thread;
 
+namespace HB {
+  // HypeBeast search-context gate: when true, upstream virtual drops (pieces
+  // not actually in hand) are disabled in move generation and legality,
+  // including quiescence. False (upstream behaviour) unless HypeBeast is on.
+  extern bool FrozenHands;
+}
+
 class Position {
 public:
   static void init();
@@ -301,6 +308,9 @@ public:
   void do_move(Move m, StateInfo& newSt);
   void do_move(Move m, StateInfo& newSt, bool givesCheck);
   void undo_move(Move m);
+  // HypeBeast: add a transferred piece to a hand in place (keys updated,
+  // NNUE accumulator of the current state invalidated).
+  void hb_add_to_hand(Piece pc);
   void do_null_move(StateInfo& newSt);
   void undo_null_move();
 
@@ -1570,6 +1580,8 @@ inline bool Position::bikjang() const {
 
 inline bool Position::allow_virtual_drop(Color c, PieceType pt) const {
   assert(two_boards());
+  if (HB::FrozenHands)
+      return false;
   // Do we allow a virtual drop?
   return pt != KING && (   count_in_hand(c, PAWN) >= -(pt == PAWN)
                         && count_in_hand(c, KNIGHT) >= -(pt == PAWN)

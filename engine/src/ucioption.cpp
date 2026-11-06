@@ -23,6 +23,7 @@
 #include <iostream>
 
 #include "evaluate.h"
+#include "hb_arena.h"
 #include "misc.h"
 #include "piece.h"
 #include "search.h"
@@ -63,6 +64,7 @@ void on_hash_size(const Option& o) { TT.resize(size_t(o)); }
 void on_logger(const Option& o) { start_logger(o); }
 void on_threads(const Option& o) { Threads.set(size_t(o)); }
 void on_tb_path(const Option& o) { Tablebases::init(o); }
+void on_hypebeast(const Option&) { HB::Arena::on_hypebeast_option(); }
 
 void on_use_NNUE(const Option& ) { Eval::NNUE::init(); }
 void on_eval_file(const Option& ) { Eval::NNUE::init(); }
@@ -212,6 +214,14 @@ void init(OptionsMap& o) {
   o["TsumeMode"]             << Option(false);
   o["VariantPath"]           << Option("<empty>", on_variant_path);
   o["usemillisec"]           << Option(true); // time unit for UCCI
+  // HypeBeast arena mode (off by default: upstream behaviour)
+  o["HypeBeast"]             << Option(false, on_hypebeast);
+  o["Coordination"]          << Option(true);
+  o["Seat"]                  << Option("Awhite", {"Awhite", "Ablack", "Bwhite", "Bblack"});
+  o["Clocks"]                << Option("");
+  // Arena/HiveMind names and semantics: Team white = White on A + Black on B
+  o["Team"]                  << Option("white", {"white", "black"});
+  o["TimeAdvantage"]         << Option(false);
 }
 
 

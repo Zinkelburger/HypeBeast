@@ -42,6 +42,8 @@ namespace Stockfish {
 namespace Search {
 
   LimitsType Limits;
+  HBHooks HBHook;
+  HBSearchResult HBResult;
 }
 
 namespace Tablebases {
@@ -188,7 +190,8 @@ void MainThread::search() {
   Time.init(rootPos, Limits, us, rootPos.game_ply());
   TT.new_search();
 
-  Eval::NNUE::verify();
+  if (!Search::HBHook.silent)
+      Eval::NNUE::verify();
 
   if (rootMoves.empty() || (CurrentProtocol == XBOARD && rootPos.is_optional_game_end()))
   {
@@ -208,10 +211,11 @@ void MainThread::search() {
                               : "0-1 {Black wins}")
                           << sync_endl;
       }
-      else
+      else if (!Search::HBHook.silent)
       sync_cout << "info depth 0 score "
                 << UCI::value(result)
                 << sync_endl;
+      Search::HBResult.terminalValue = result;
   }
   else
   {
@@ -258,7 +262,7 @@ void MainThread::search() {
   bestPreviousScore = bestThread->rootMoves[0].score;
 
   // Send again PV info if we have a new best thread
-  if (bestThread != this)
+  if (bestThread != this && !Search::HBHook.silent)
       sync_cout << UCI::pv(bestThread->rootPos, bestThread->completedDepth, -VALUE_INFINITE, VALUE_INFINITE) << sync_endl;
 
   if (CurrentProtocol == XBOARD)
@@ -299,6 +303,24 @@ void MainThread::search() {
                   XBoard::stateMachine->ponderMove = bestThread->rootMoves[0].pv[1];
           }
       }
+      return;
+  }
+
+  if (Search::HBHook.capture)
+  {
+      // HypeBeast: hand the result to the controller, which prints the joint bestmove
+      const RootMove& rm = bestThread->rootMoves[0];
+      Search::HBResult.rootMovesEmpty = rm.pv[0] == MOVE_NONE;
+      Search::HBResult.finalMove = rm.pv[0];
+      Search::HBResult.ponderMove =  rm.pv.size() > 1 ? rm.pv[1] : MOVE_NONE;
+      Search::HBResult.finalScore = rm.score;
+      Search::HBResult.finalAlpha = bestThread->hbAlpha;
+      Search::HBResult.finalBeta = bestThread->hbBeta;
+      Search::HBResult.completedDepth = bestThread->completedDepth;
+      Search::HBResult.exactScore = bestThread->hbExactScore;
+      Search::HBResult.exactPV = bestThread->hbExactPV;
+      Search::HBResult.selDepth = rm.selDepth;
+      Search::HBResult.nodes = Threads.nodes_searched();
       return;
   }
 
@@ -442,6 +464,7 @@ void Thread::search() {
           while (true)
           {
               Depth adjustedDepth = std::max(1, rootDepth - failedHighCnt - searchAgainCounter);
+              hbAlpha = alpha, hbBeta = beta;
               bestValue = Stockfish::search<Root>(rootPos, ss, alpha, beta, adjustedDepth, false);
 
               // Bring the best move to the front. It is critical that sorting
@@ -461,6 +484,7 @@ void Thread::search() {
               // When failing high/low give some update (without cluttering
               // the UI) before a re-search.
               if (   mainThread
+                  && !Search::HBHook.silent
                   && multiPV == 1
                   && (bestValue <= alpha || bestValue >= beta)
                   && Time.elapsed() > 3000)
@@ -494,12 +518,17 @@ void Thread::search() {
           std::stable_sort(rootMoves.begin() + pvFirst, rootMoves.begin() + pvIdx + 1);
 
           if (    mainThread
+              && !Search::HBHook.silent
               && (Threads.stop || pvIdx + 1 == multiPV || Time.elapsed() > 3000))
               sync_cout << UCI::pv(rootPos, rootDepth, alpha, beta) << sync_endl;
       }
 
       if (!Threads.stop)
+      {
           completedDepth = rootDepth;
+          hbExactScore = rootMoves[0].score;
+          hbExactPV = rootMoves[0].pv;
+      }
 
       if (rootMoves[0].pv[0] != lastBestMove) {
          lastBestMove = rootMoves[0].pv[0];
@@ -1123,7 +1152,7 @@ moves_loop: // When in check, search starts from here
 
       ss->moveCount = ++moveCount;
 
-      if (rootNode && thisThread == Threads.main() && Time.elapsed() > 3000 && is_uci_dialect(CurrentProtocol))
+      if (rootNode && thisThread == Threads.main() && !Search::HBHook.silent && Time.elapsed() > 3000 && is_uci_dialect(CurrentProtocol))
           sync_cout << "info depth " << depth
                     << " currmove " << UCI::move(pos, move)
                     << " currmovenumber " << moveCount + thisThread->pvIdx << sync_endl;

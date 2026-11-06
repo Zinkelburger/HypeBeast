@@ -76,6 +76,11 @@ public:
   CapturePieceToHistory captureHistory;
   ContinuationHistory continuationHistory[2][2];
   Score trend;
+
+  // HypeBeast bookkeeping (written only, never read by the search itself)
+  Value hbExactScore;
+  std::vector<Move> hbExactPV;
+  Value hbAlpha, hbBeta;
 };
 
 

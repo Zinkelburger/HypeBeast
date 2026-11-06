@@ -230,6 +230,10 @@ void ThreadPool::start_thinking(Position& pos, StateListPtr& states,
   {
       th->nodes = th->tbHits = th->nmpMinPly = th->bestMoveChanges = 0;
       th->rootDepth = th->completedDepth = 0;
+      th->hbExactScore = -VALUE_INFINITE;
+      th->hbExactPV.clear();
+      th->hbAlpha = -VALUE_INFINITE;
+      th->hbBeta = VALUE_INFINITE;
       th->rootMoves = rootMoves;
       th->rootPos.set(pos.variant(), pos.fen(), pos.is_chess960(), &th->rootState, th);
       th->rootState = setupStates->back();

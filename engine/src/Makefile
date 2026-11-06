@@ -43,7 +43,8 @@ SRCS = benchmark.cpp bitbase.cpp bitboard.cpp endgame.cpp evaluate.cpp main.cpp 
 	search.cpp thread.cpp timeman.cpp tt.cpp uci.cpp ucioption.cpp tune.cpp syzygy/tbprobe.cpp \
 	nnue/evaluate_nnue.cpp nnue/features/half_ka_v2.cpp \
 	partner.cpp parser.cpp piece.cpp variant.cpp xboard.cpp \
-	nnue/features/half_ka_v2_variants.cpp
+	nnue/features/half_ka_v2_variants.cpp \
+	hb_arena.cpp hb_team_state.cpp hb_probe.cpp hb_coordinator.cpp hb_decisionlog.cpp
 
 OBJS = $(notdir $(SRCS:.cpp=.o))
 

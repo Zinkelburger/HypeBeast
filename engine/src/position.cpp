@@ -36,6 +36,8 @@ using std::string;
 
 namespace Stockfish {
 
+namespace HB { bool FrozenHands = false; }
+
 namespace Zobrist {
 
   Key psq[PIECE_NB][SQUARE_NB];
@@ -610,6 +612,23 @@ void Position::set_check_info(StateInfo* si) const {
               si->pseudoRoyals |= pieces(~sideToMove, pt);
       }
   }
+}
+
+
+/// Position::hb_add_to_hand() puts a piece transferred from the partner board
+/// into a hand without making a move. Only the hand part of the hash key
+/// changes; NNUE must refresh because the hand change is not a dirty piece.
+
+void Position::hb_add_to_hand(Piece pc) {
+
+  Color c = color_of(pc);
+  PieceType pt = type_of(pc);
+  if (piece_drops() || seirawan_gating())
+      st->key ^= Zobrist::inHand[pc][pieceCountInHand[c][pt]];
+  add_to_hand(pc);
+  if (piece_drops() || seirawan_gating())
+      st->key ^= Zobrist::inHand[pc][pieceCountInHand[c][pt]];
+  st->accumulator.computed[WHITE] = st->accumulator.computed[BLACK] = false;
 }
 
 

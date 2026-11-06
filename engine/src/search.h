@@ -104,6 +104,31 @@ struct LimitsType {
 
 extern LimitsType Limits;
 
+/// HypeBeast hooks. Both flags are false unless the HypeBeast controller sets
+/// them around a search, so upstream output and behaviour are unchanged.
+struct HBHooks {
+  bool capture = false; // store the result in HBResult instead of printing bestmove
+  bool silent  = false; // suppress all search output (child searches)
+};
+
+struct HBSearchResult {
+  bool  rootMovesEmpty = false;
+  Value terminalValue = VALUE_NONE;     // set when there are no root moves
+  Move  finalMove = MOVE_NONE;          // what upstream would play
+  Move  ponderMove = MOVE_NONE;
+  Value finalScore = -VALUE_INFINITE;   // rootMoves[0].score at the end (may be partial)
+  Value finalAlpha = -VALUE_INFINITE;   // root window of the last root search
+  Value finalBeta = VALUE_INFINITE;
+  Depth completedDepth = 0;
+  Value exactScore = -VALUE_INFINITE;   // score of the last completed iteration
+  std::vector<Move> exactPV;            // PV of the last completed iteration
+  int   selDepth = 0;
+  uint64_t nodes = 0;
+};
+
+extern HBHooks HBHook;
+extern HBSearchResult HBResult;
+
 void init();
 void clear();
 

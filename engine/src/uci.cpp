@@ -24,6 +24,7 @@
 #include <string>
 
 #include "evaluate.h"
+#include "hb_arena.h"
 #include "movegen.h"
 #include "position.h"
 #include "search.h"
@@ -334,7 +335,10 @@ void UCI::loop(int argc, char* argv[]) {
 
       if (    token == "quit"
           ||  token == "stop")
+      {
           Threads.stop = true;
+          HB::Arena::stop();
+      }
 
       // The GUI sends 'ponderhit' to tell us the user has played the expected move.
       // So 'ponderhit' will be sent if we were told to ponder on the same move the
@@ -373,14 +377,19 @@ void UCI::loop(int argc, char* argv[]) {
       else if (CurrentProtocol == XBOARD)
           XBoard::stateMachine->process_command(token, is);
 
-      else if (token == "setoption")  setoption(is);
+      else if (token == "setoption")  HB::Arena::wait(), setoption(is);
       // UCCI-specific banmoves command
       else if (token == "banmoves")
           while (is >> token)
               banmoves.push_back(UCI::to_move(pos, token));
+      else if (token == "go" && HB::Arena::enabled())       HB::Arena::go(is);
+      else if (token == "position" && HB::Arena::enabled()) HB::Arena::position(is);
       else if (token == "go")         go(pos, is, states, banmoves);
       else if (token == "position")   position(pos, is, states), banmoves.clear();
-      else if (token == "ucinewgame" || token == "usinewgame" || token == "uccinewgame") Search::clear();
+      else if (token == "ucinewgame" || token == "usinewgame" || token == "uccinewgame") HB::Arena::new_game(), Search::clear();
+      else if (token == "hbstate")    HB::Arena::hbstate(is);
+      else if (token == "hbmakeundo") HB::Arena::hbmakeundo(is);
+      else if (token == "hbprobe")    HB::Arena::hbprobe(is);
       else if (token == "isready")    sync_cout << "readyok" << sync_endl;
 
       // Additional custom non-UCI commands, mainly for debugging.
@@ -417,6 +426,8 @@ void UCI::loop(int argc, char* argv[]) {
           sync_cout << "Unknown command: " << cmd << sync_endl;
 
   } while (token != "quit" && argc == 1); // Command line args are one-shot
+
+  HB::Arena::shutdown();
 }
 
 
