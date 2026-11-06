@@ -1,0 +1,10 @@
+/upstream/
+/bin/
+nets/*.nnue
+*.o
+*.log
+engine/src/stockfish
+engine/src/*.gcda
+engine/src/*.gcno
+__pycache__/
+*.pyc
