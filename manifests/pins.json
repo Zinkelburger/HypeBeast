@@ -10,7 +10,7 @@
     "path": "engine/ (tracked in this repo)",
     "pristine_import_commit": "97532b2dafae0b3fb344f9ddd17243cfc5eea74b",
     "pristine_engine_tree_equals_upstream_tree": true,
-    "repo_head": "c16b19e3c4105369529ac8a24b487f621d477019"
+    "repo_head": "964a33233e3fb5c43fc271eda374f4ab818bb0d9"
   },
   "build": {
     "command": "make -j22 build ARCH=x86-64-bmi2 COMP=gcc (in upstream/src and engine/src)",
@@ -22,7 +22,7 @@
   },
   "binaries": {
     "bin/fsf-ref": "6ef2fbb6c358a38d7e60985fb787e9fde414d4dcca1279677f62e8300358a05c",
-    "bin/hypebeast": "b48e56b9f71bccf1d4ef3ce2e1c9605a78400127a3034e44d600a19371b1437a"
+    "bin/hypebeast": "20b7cec87b7e2a3d66061a86658c756c6985eb6b9ce414716e603a1c974ac21f"
   },
   "net": {
     "file": "nets/bughouse-cd8cceab93fe.nnue",
