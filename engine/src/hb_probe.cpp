@@ -211,14 +211,20 @@ bool Budget::grant(Phase p, uint64_t& nodes, TimePoint& movetimeMs) const {
   double c = cumulative(p);
   if (node_limited())
   {
-      uint64_t cap = std::min(totalNodes, uint64_t(std::floor(c * double(totalNodes))));
+      uint64_t cap = uint64_t(std::floor(c * double(totalNodes)));
+      if (p == Phase::MAIN)
+          cap = std::max<uint64_t>(cap, 1);   // the main search always gets to start
+      cap = std::min(totalNodes, cap);
       if (usedNodes >= cap)
           return false;
       nodes = cap - usedNodes;
   }
   if (time_limited())
   {
-      TimePoint deadline = start + std::min(totalMs, TimePoint(std::floor(c * double(totalMs))));
+      TimePoint slice = TimePoint(std::floor(c * double(totalMs)));
+      if (p == Phase::MAIN)
+          slice = std::max<TimePoint>(slice, 1);
+      TimePoint deadline = start + std::min(totalMs, slice);
       TimePoint left = deadline - now();
       if (left < 1)
           return false;
@@ -276,6 +282,9 @@ ProbeResult run_main_search(const TeamState& ts, int board, Budget& budget,
   Search::HBResult = Search::HBSearchResult();
 
   StateListPtr states = ts.history_copy(board);
+  // Node checks start fresh (upstream carries callsCnt over between searches,
+  // which lets a node-limited search overshoot by up to 1024 nodes).
+  Threads.main()->callsCnt = 0;
   Threads.start_thinking(const_cast<Position&>(actual), states, limits);
   if (Budget::cancelled())
       Threads.stop = true;
@@ -391,6 +400,7 @@ ProbeResult ChildWorker::run(const ProbeRequest& req, Budget& budget, DecisionLo
           return done(ProbeResult::NO_BUDGET); // never an unbounded child
 
       Search::HBResult = Search::HBSearchResult();
+      Threads.main()->callsCnt = 0;
       Threads.start_thinking(p, states, limits);
       if (Budget::cancelled())
           Threads.stop = true;
