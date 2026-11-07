@@ -43,9 +43,10 @@ pins = {
         "arch": "x86-64-bmi2", "comp": "gcc", "compiler": compiler,
         "largeboards": "no", "nnue_embedding": "off (EvalFile required)",
     },
-    "binaries": {
-        "bin/fsf-ref": sha256(ROOT / "bin/fsf-ref"),
-        "bin/hypebeast": sha256(ROOT / "bin/hypebeast"),
+    "binaries": {f"bin/{p.name}": sha256(p) for p in sorted((ROOT / "bin").iterdir()) if p.is_file()},
+    "binary_notes": {
+        "bin/hypebeast": "v1, frozen for the screen20 screening matches (engine commit c7c9f94)",
+        "bin/hypebeast-v2": "v2 = v1 + exposure veto (engine commit 69dc856); tuned on debug.txt only",
     },
     "net": {
         "file": "nets/" + net.name,

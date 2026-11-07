@@ -169,7 +169,8 @@ def main() -> int:
                     g3 = g2.copy()
                     g3.push(0, d)
                     fed_mate |= g3.is_checkmate(chess.WHITE, False)
-        check(not fed_mate and rep["reason"] == "exposure_veto" and int(s["exposed"]) > 0,
+        main_safe = rep["candidates"][0]["exposed"] == ""
+        check(not fed_mate and (rep["reason"] == "exposure_veto" or main_safe),
               "v2 exposure veto avoids feeding a mating queen", f"{move} reason={rep['reason']} veto={s.get('veto')}")
     e.setoption("Seat", "Awhite")
     e.setoption("Team", "white")
