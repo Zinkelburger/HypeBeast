@@ -40,6 +40,7 @@ struct ChildScope {
       TT.swap(ChildTT);
       Search::HBHook.capture = true;
       Search::HBHook.silent = true;
+      Search::HBHook.multiPV = 0;
   }
   ~ChildScope() {
       Threads.main()->wait_for_search_finished();
@@ -56,6 +57,8 @@ void fill_result(ProbeResult& r, const Position& root, Depth targetDepth) {
   r.finalMove = R.finalMove;
   r.finalScore = R.finalScore;
   r.finalMoveUci = R.finalMove != MOVE_NONE ? UCI::move(root, R.finalMove) : "(none)";
+  r.lines = R.completedDepth > 0 ? R.lines : std::vector<std::pair<Move, Value>>();
+  r.rootOrder = R.rootOrder;
 
   if (R.completedDepth > 0 && !R.exactPV.empty() && R.exactScore != -VALUE_INFINITE)
   {
@@ -105,6 +108,7 @@ const char* phase_name(Phase p) {
   case Phase::MAIN:      return "main";
   case Phase::DISCOVERY: return "discovery";
   case Phase::PROBES:    return "probes";
+  case Phase::COMPARE:   return "compare";
   case Phase::RESERVE:   return "reserve";
   default:               return "?";
   }
@@ -183,7 +187,7 @@ double Budget::cumulative(Phase p) const {
       return 1.0;
   double c = slices.main;
   if (p >= Phase::DISCOVERY) c += slices.discovery;
-  if (p >= Phase::PROBES)    c += slices.probes;
+  if (p >= Phase::PROBES)    c += slices.probes;   // COMPARE shares this cap
   if (p >= Phase::RESERVE)   c += slices.reserve;
   return std::min(c, 1.0);
 }
@@ -236,7 +240,9 @@ bool Budget::grant(Phase p, uint64_t& nodes, TimePoint& movetimeMs) const {
 // ------------------------------------------------------------- main search
 
 ProbeResult run_main_search(const TeamState& ts, int board, Budget& budget,
-                            Phase phase, DecisionLog* log) {
+                            Phase phase, DecisionLog* log,
+                            const std::vector<Move>& searchMoves, size_t multiPV,
+                            const std::string& tag) {
   ProbeResult r;
   TimePoint t0 = now();
   const Position& actual = ts.pos(board);
@@ -245,20 +251,34 @@ ProbeResult run_main_search(const TeamState& ts, int board, Budget& budget,
   if (!MoveList<LEGAL>(actual).size())
   {
       r.status = ProbeResult::NO_LEGAL_MOVES;
-      if (log) log->add(phase, "main", r);
+      if (log) log->add(phase, tag, r);
       return r;
   }
   if (Budget::cancelled())
   {
       r.status = ProbeResult::CANCELLED;
-      if (log) log->add(phase, "main", r);
+      if (log) log->add(phase, tag, r);
       return r;
   }
 
   Search::LimitsType limits = budget.go_limits();
-  limits.searchmoves.clear();
+  limits.searchmoves = searchMoves;
   limits.banmoves.clear();
+  if (phase != Phase::MAIN)
+  {
+      // A later search in the same go: deadline and node budget come from
+      // the shared budget only; never a fresh movetime or depth.
+      limits.depth = 0;
+      limits.mate = 0;
+      limits.infinite = 0;
+  }
   limits.startTime = budget.start_time();
+  if (budget.passthrough() && phase != Phase::MAIN)
+  {
+      r.status = ProbeResult::NO_BUDGET;
+      if (log) log->add(phase, tag, r);
+      return r;
+  }
   if (!budget.passthrough())
   {
       uint64_t n;
@@ -266,7 +286,7 @@ ProbeResult run_main_search(const TeamState& ts, int board, Budget& budget,
       if (!budget.grant(phase, n, ms))
       {
           r.status = ProbeResult::NO_BUDGET;
-          if (log) log->add(phase, "main", r);
+          if (log) log->add(phase, tag, r);
           return r;
       }
       limits.nodes = int64_t(n);
@@ -278,7 +298,8 @@ ProbeResult run_main_search(const TeamState& ts, int board, Budget& budget,
 
   Search::HBHooks saved = Search::HBHook;
   Search::HBHook.capture = true;
-  Search::HBHook.silent = false;
+  Search::HBHook.silent = phase != Phase::MAIN;
+  Search::HBHook.multiPV = multiPV;
   Search::HBResult = Search::HBSearchResult();
 
   StateListPtr states = ts.history_copy(board);
@@ -295,7 +316,7 @@ ProbeResult run_main_search(const TeamState& ts, int board, Budget& budget,
   fill_result(r, actual, limits.depth);
   r.ms = now() - t0;
   budget.charge(r.nodes);
-  if (log) log->add(phase, "main", r);
+  if (log) log->add(phase, tag, r);
   return r;
 }
 

@@ -14,7 +14,8 @@ from collections import Counter
 
 import chess
 
-from hbutil import Engine, HYPEBEAST, SEATS, parse_bestmove
+from hbutil import Engine, HYPEBEAST, SEATS, parse_bestmove, summary_fields
+from coverage_stats import coverage
 from bughouse_arena.referee import Bughouse, team_name  # noqa: E402
 from bughouse_arena.sim import ClockConfig, play_game, seat_index  # noqa: E402
 
@@ -25,6 +26,7 @@ class HypeBeastSeat:
         self.budget = budget
         self.name = f"hb-coord{int(coordination)}"
         self.decisions = self.passes = self.bad = 0
+        self.summaries = []
 
     def new_game(self, board: int, color: chess.Color) -> None:
         self.board = board
@@ -44,6 +46,7 @@ class HypeBeastSeat:
         self.engine.send("stop")
         if any("hb_error" in l for l in lines):
             self.bad += 1
+        self.summaries.append(summary_fields(lines))
         a, b = parse_bestmove(lines)
         own, other = (a, b) if self.board == 0 else (b, a)
         if other != "pass":
@@ -74,7 +77,8 @@ def run(args) -> dict:
                "error": result.error, "plies": len(result.moves),
                "decisions": sum(p.decisions for p in seats.values()),
                "passes": sum(p.passes for p in seats.values()),
-               "hb_errors": sum(p.bad for p in seats.values())}
+               "hb_errors": sum(p.bad for p in seats.values()),
+               "summaries": [x for p in seats.values() for x in p.summaries]}
     finally:
         for p in seats.values():
             p.close()
@@ -93,8 +97,11 @@ def main() -> int:
         results = pool.map(run, [(i, budget) for i in range(args.games)])
     terms = Counter(r["termination"] for r in results)
     bad = [r for r in results if r["error"] or r["termination"] in ("illegal move", "error") or r["hb_errors"]]
+    summaries = []
     for i, r in enumerate(results):
+        summaries.extend(r.pop("summaries"))
         print(f"game {i}: {r}")
+    print("coverage:", coverage(summaries))
     print(f"smoke: games={len(results)} budget='{budget}' terminations={dict(terms)} "
           f"plies={sum(r['plies'] for r in results)} decisions={sum(r['decisions'] for r in results)} "
           f"passes={sum(r['passes'] for r in results)} bad={len(bad)}")

@@ -80,6 +80,7 @@ public:
   // HypeBeast bookkeeping (written only, never read by the search itself)
   Value hbExactScore;
   std::vector<Move> hbExactPV;
+  std::vector<std::pair<Move, Value>> hbLines;
   Value hbAlpha, hbBeta;
 };
 

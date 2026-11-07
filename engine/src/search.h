@@ -109,6 +109,7 @@ extern LimitsType Limits;
 struct HBHooks {
   bool capture = false; // store the result in HBResult instead of printing bestmove
   bool silent  = false; // suppress all search output (child searches)
+  size_t multiPV = 0;   // >0: MultiPV for this search instead of the UCI option
 };
 
 struct HBSearchResult {
@@ -124,6 +125,9 @@ struct HBSearchResult {
   std::vector<Move> exactPV;            // PV of the last completed iteration
   int   selDepth = 0;
   uint64_t nodes = 0;
+  // Exact (move, score) of every MultiPV line of the last completed iteration
+  std::vector<std::pair<Move, Value>> lines;
+  std::vector<Move> rootOrder;          // first root moves in final order
 };
 
 extern HBHooks HBHook;

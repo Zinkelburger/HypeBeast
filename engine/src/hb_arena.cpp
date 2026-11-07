@@ -175,6 +175,24 @@ void controller(Search::LimitsType limits) {
   else
   {
       Budget budget(limits, coordination);
+      if (coordination)
+      {
+          // Voluntary waiting is decided before any search (PLAN 5.4)
+          ProbeResult none;
+          CoordinatorContext wctx{ts, sc.seat, sc.team, sc.board, sc.us,
+                                  {sc.advantage[WHITE], sc.advantage[BLACK]},
+                                  {sc.advantageKnown[WHITE], sc.advantageKnown[BLACK]},
+                                  sc.clocksKnown,
+                                  {sc.clocks[0], sc.clocks[1], sc.clocks[2], sc.clocks[3]},
+                                  verdict, none, fallback, budget, ChildWorker::get(), log};
+          Decision w = consider_voluntary_wait(wctx);
+          if (w.pass)
+              d = w;
+      }
+  }
+  if (onTurn && legal.size() && !d.pass)
+  {
+      Budget budget(limits, coordination);
       mainResult = run_main_search(ts, sc.board, budget, Phase::MAIN, &log);
       searched = true;
       if (coordination)
@@ -347,6 +365,7 @@ void wait() { join_controller(); }
 
 void new_game() {
   wait();
+  reset_wait_state();
   actual().reset_startpos();
   PositionError.clear();
 }

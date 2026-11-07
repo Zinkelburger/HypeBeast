@@ -17,6 +17,8 @@
 
 namespace Stockfish::HB {
 
+namespace { bool is_child(Phase p) { return p == Phase::DISCOVERY || p == Phase::PROBES; } }
+
 void DecisionLog::clear() {
   log.clear();
   fields.clear();
@@ -51,21 +53,21 @@ int DecisionLog::searches(Phase p) const {
 int DecisionLog::child_searches() const {
   int n = 0;
   for (const auto& e : log)
-      n += e.phase != Phase::MAIN && e.result.status == ProbeResult::OK;
+      n += is_child(e.phase) && e.result.status == ProbeResult::OK;
   return n;
 }
 
 int DecisionLog::exact_child_searches() const {
   int n = 0;
   for (const auto& e : log)
-      n += e.phase != Phase::MAIN && e.result.usable_exact();
+      n += is_child(e.phase) && e.result.usable_exact();
   return n;
 }
 
 TimePoint DecisionLog::child_ms() const {
   TimePoint t = 0;
   for (const auto& e : log)
-      if (e.phase != Phase::MAIN)
+      if (is_child(e.phase))
           t += e.result.ms;
   return t;
 }
@@ -83,13 +85,14 @@ std::string DecisionLog::summary(TimePoint elapsed) const {
       ss << f.first << "=" << f.second << " ";
   int requested = 0;
   for (const auto& e : log)
-      requested += e.phase != Phase::MAIN;
+      requested += is_child(e.phase);
   ss << "main_nodes=" << nodes(Phase::MAIN)
      << " child_requests=" << requested
      << " child_searches=" << child_searches()
      << " child_exact=" << exact_child_searches()
      << " discovery_nodes=" << nodes(Phase::DISCOVERY)
      << " probe_nodes=" << nodes(Phase::PROBES)
+     << " compare_nodes=" << nodes(Phase::COMPARE)
      << " child_ms=" << child_ms()
      << " clear_ms=" << clear_ms()
      << " total_nodes=" << total_nodes()

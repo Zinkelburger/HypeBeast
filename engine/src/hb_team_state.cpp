@@ -204,6 +204,45 @@ Transfer TeamState::play(int board, Move m) {
   return t;
 }
 
+TeamUndo TeamState::play_undoable(int board, Move m) {
+  TeamUndo u;
+  u.board = board;
+  u.move = m;
+  u.halfmove = boards[board].halfmove;
+  u.lastBoard = lastBoard;
+  u.transfer = play(board, m);
+  u.key = boards[board].repKeys.back();
+  return u;
+}
+
+void TeamState::undo(const TeamUndo& u) {
+  BoardState& bs = boards[u.board];
+  if (u.transfer.toBoard >= 0)
+      pos(u.transfer.toBoard).hb_remove_from_hand(u.transfer.piece);
+  bs.pos.undo_move(u.move);
+  bs.states->pop_back();
+  bs.halfmove = u.halfmove;
+  if (--bs.repCount[u.key] == 0)
+      bs.repCount.erase(u.key);
+  bs.repKeys.pop_back();
+  moves.pop_back();
+  lastBoard = u.lastBoard;
+}
+
+void TeamState::assign_light(const TeamState& other) {
+  for (int b : {BOARD_A, BOARD_B})
+  {
+      BoardState& bs = boards[b];
+      bs.states = StateListPtr(new std::deque<StateInfo>(1));
+      bs.pos.set(bughouse_variant(), other.fen(b), false, &bs.states->back(), Threads.main());
+      bs.repKeys = other.boards[b].repKeys;
+      bs.repCount = other.boards[b].repCount;
+      bs.halfmove = other.boards[b].halfmove;
+  }
+  moves = other.moves;
+  lastBoard = other.lastBoard;
+}
+
 void TeamState::add_to_pocket(int board, Piece pc) {
   pos(board).hb_add_to_hand(pc);
 }

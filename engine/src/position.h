@@ -311,6 +311,7 @@ public:
   // HypeBeast: add a transferred piece to a hand in place (keys updated,
   // NNUE accumulator of the current state invalidated).
   void hb_add_to_hand(Piece pc);
+  void hb_remove_from_hand(Piece pc);
   void do_null_move(StateInfo& newSt);
   void undo_null_move();
 

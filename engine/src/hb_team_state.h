@@ -69,6 +69,16 @@ struct Verdict {
   bool terminal() const { return result != "none"; }
 };
 
+/// Undo record for TeamState::play_undoable().
+struct TeamUndo {
+  int board = -1;
+  Move move = MOVE_NONE;
+  Transfer transfer;
+  int halfmove = 0;
+  int lastBoard = -1;
+  std::string key;
+};
+
 class TeamState {
 public:
   TeamState();
@@ -84,6 +94,15 @@ public:
   bool play(int board, const std::string& uci, std::string& err);
   // Play an already legal move. Returns the transfer applied.
   Transfer play(int board, Move m);
+
+  // Same as play() but reversible with undo() (most recent first).
+  TeamUndo play_undoable(int board, Move m);
+  void undo(const TeamUndo& u);
+
+  // Cheap copy for referee checks and probe construction: each board is
+  // rebuilt from its FEN with a single StateInfo (no pre-root history);
+  // referee halfmove clocks and repetition counts are kept.
+  void assign_light(const TeamState& other);
 
   // Hypothetical arrival (scenario copies only): add a piece to a hand on a
   // board without changing whose turn it is.

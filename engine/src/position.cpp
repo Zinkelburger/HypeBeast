@@ -632,6 +632,20 @@ void Position::hb_add_to_hand(Piece pc) {
 }
 
 
+void Position::hb_remove_from_hand(Piece pc) {
+
+  Color c = color_of(pc);
+  PieceType pt = type_of(pc);
+  assert(pieceCountInHand[c][pt] > 0);
+  if (piece_drops() || seirawan_gating())
+      st->key ^= Zobrist::inHand[pc][pieceCountInHand[c][pt]];
+  remove_from_hand(pc);
+  if (piece_drops() || seirawan_gating())
+      st->key ^= Zobrist::inHand[pc][pieceCountInHand[c][pt]];
+  st->accumulator.computed[WHITE] = st->accumulator.computed[BLACK] = false;
+}
+
+
 /// Position::set_state() computes the hash keys of the position, and other
 /// data that once computed is updated incrementally as moves are made.
 /// The function is only used when a new position is set up, and to verify

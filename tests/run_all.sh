@@ -9,4 +9,5 @@ python3 test_upstream_parity.py
 python3 test_terminal_fixtures.py
 python3 test_probe.py --long
 python3 test_replay_fuzz.py --games "$GAMES" --workers "$WORKERS"
-python3 smoke_games.py --games 16 --nodes 4000 --workers 5
+python3 test_coordinator.py
+python3 smoke_games.py --games 16 --movetime 300 --workers 5

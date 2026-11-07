@@ -254,6 +254,7 @@ void MainThread::search() {
   bestThread = this;
 
   if (   int(Options["MultiPV"]) == 1
+      && Search::HBHook.multiPV <= 1
       && !Limits.depth
       && !(Skill(Options["Skill Level"]).enabled() || int(Options["UCI_LimitStrength"]))
       && rootMoves[0].pv[0] != MOVE_NONE)
@@ -321,6 +322,10 @@ void MainThread::search() {
       Search::HBResult.exactPV = bestThread->hbExactPV;
       Search::HBResult.selDepth = rm.selDepth;
       Search::HBResult.nodes = Threads.nodes_searched();
+      Search::HBResult.lines = bestThread->hbLines;
+      Search::HBResult.rootOrder.clear();
+      for (size_t i = 0; i < bestThread->rootMoves.size() && i < 3; ++i)
+          Search::HBResult.rootOrder.push_back(bestThread->rootMoves[i].pv[0]);
       return;
   }
 
@@ -378,7 +383,7 @@ void Thread::search() {
   std::copy(&lowPlyHistory[2][0], &lowPlyHistory.back().back() + 1, &lowPlyHistory[0][0]);
   std::fill(&lowPlyHistory[MAX_LPH - 2][0], &lowPlyHistory.back().back() + 1, 0);
 
-  size_t multiPV = size_t(Options["MultiPV"]);
+  size_t multiPV = Search::HBHook.multiPV ? Search::HBHook.multiPV : size_t(Options["MultiPV"]);
 
   // Pick integer skill levels, but non-deterministically round up or down
   // such that the average integer skill corresponds to the input floating point one.
@@ -528,6 +533,9 @@ void Thread::search() {
           completedDepth = rootDepth;
           hbExactScore = rootMoves[0].score;
           hbExactPV = rootMoves[0].pv;
+          hbLines.clear();
+          for (size_t i = 0; i < multiPV; ++i)
+              hbLines.emplace_back(rootMoves[i].pv[0], rootMoves[i].score);
       }
 
       if (rootMoves[0].pv[0] != lastBestMove) {

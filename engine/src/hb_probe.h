@@ -27,7 +27,10 @@ namespace Stockfish::HB {
 class TeamState;
 class DecisionLog;
 
-enum class Phase : int { MAIN, DISCOVERY, PROBES, RESERVE, NB };
+// COMPARE: the final root-restricted comparison (or main extension) search.
+// It has the same cumulative cap as PROBES, so it absorbs whatever the
+// earlier phases left unused.
+enum class Phase : int { MAIN, DISCOVERY, PROBES, COMPARE, RESERVE, NB };
 const char* phase_name(Phase p);
 
 /// Budget fractions. Cumulative: phase k may use everything up to the sum of
@@ -112,6 +115,11 @@ struct ProbeResult {
   Bound finalBound = BOUND_NONE;
   bool  finalFromPartial = false;
 
+  // Exact (move, score) of every MultiPV line of the last completed
+  // iteration, and the first root moves in final order (main pool only).
+  std::vector<std::pair<Move, Value>> lines;
+  std::vector<Move> rootOrder;
+
   // UCI spellings (filled from the search's own root position)
   std::string moveUci, finalMoveUci;
   std::vector<std::string> pvUci;
@@ -134,8 +142,12 @@ int finite_cp(Value v);
 std::string result_json(const ProbeResult& r);
 
 /// Main search on our actual board (thread pool, main TT, actual history).
+// searchMoves restricts the root; multiPV > 1 gives every line an exact score.
+// The main TT and main-thread heuristics are used (same context and hands).
 ProbeResult run_main_search(const TeamState& ts, int board, Budget& budget,
-                            Phase phase, DecisionLog* log);
+                            Phase phase, DecisionLog* log,
+                            const std::vector<Move>& searchMoves = {},
+                            size_t multiPV = 1, const std::string& tag = "main");
 
 /// Sequential, reusable, single-threaded child worker. It owns a separate
 /// MainThread (own heuristics) and a separate TT, swapped in only for the
