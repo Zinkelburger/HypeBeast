@@ -8,3 +8,4 @@ engine/src/*.gcda
 engine/src/*.gcno
 __pycache__/
 *.pyc
+logs/

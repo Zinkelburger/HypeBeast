@@ -1,0 +1,38 @@
+{
+  "fairy_stockfish_upstream": {
+    "repo": "https://github.com/fairy-stockfish/Fairy-Stockfish",
+    "requested": "4e3d014",
+    "sha": "4e3d0147d5b8da1b780a29f0b3e1d24311d028fa",
+    "tree": "5a8842c167f6c2782ab019f8d3a09e1968065853",
+    "note": "4e3d014 resolves to upstream master HEAD at clone time (2026-11-05 commit)"
+  },
+  "hypebeast_fork": {
+    "path": "engine/ (tracked in this repo)",
+    "pristine_import_commit": "97532b2dafae0b3fb344f9ddd17243cfc5eea74b",
+    "pristine_engine_tree_equals_upstream_tree": true,
+    "repo_head": "c16b19e3c4105369529ac8a24b487f621d477019"
+  },
+  "build": {
+    "command": "make -j22 build ARCH=x86-64-bmi2 COMP=gcc (in upstream/src and engine/src)",
+    "arch": "x86-64-bmi2",
+    "comp": "gcc",
+    "compiler": "g++ (GCC) 16.2.1 20260819 (Red Hat 16.2.1-2)",
+    "largeboards": "no",
+    "nnue_embedding": "off (EvalFile required)"
+  },
+  "binaries": {
+    "bin/fsf-ref": "6ef2fbb6c358a38d7e60985fb787e9fde414d4dcca1279677f62e8300358a05c",
+    "bin/hypebeast": "b48e56b9f71bccf1d4ef3ce2e1c9605a78400127a3034e44d600a19371b1437a"
+  },
+  "net": {
+    "file": "nets/bughouse-cd8cceab93fe.nnue",
+    "sha256": "cd8cceab93fed185b79932414d1a0823f40e15a09ca9776ceab7c9c5272ddc13",
+    "bytes": 58534816,
+    "source": "https://fairy-stockfish.github.io/nnue/ (bughouse row, 2023/01/24, Google Drive id 1qZVSzm5G_KRc33YCqmsPM6Ayxo3CI4ME)",
+    "loads_for": "UCI_Variant=bughouse (info string NNUE evaluation using ... enabled)"
+  },
+  "hivemind_checkout": {
+    "path": "~/Projects/hivemind (reference only; installed arena binary pinned by the arena)",
+    "sha": "5508ba9daf4164e48a8a8a9b39e101efdc60e97a"
+  }
+}
