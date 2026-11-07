@@ -144,6 +144,36 @@ def main() -> int:
               f"{go}: falls back to the main choice", f"{a} reason={rep['reason']} "
               f"probes={s.get('probes_completed')}/{s.get('probes_required')} depth={s.get('main_depth')}")
 
+    # 8 (v2). Exposure veto: trading queens on B (Qxd1+ Kxd1) feeds black
+    # on A a queen for Q@g1/Q@a1 mate; v2 must pick a move that does not.
+    AX = "6rk/8/8/8/8/8/7P/7K[] b - - 0 1"
+    BX = "4k3/8/8/8/8/8/3q4/3QK3[] b - - 0 1"
+    e.setoption("Seat", "Bblack")
+    e.setoption("Team", "white")
+    lines, rep, s, _ = coord(e, AX, BX)
+    if "exposed" not in s:
+        print("[skip] exposure veto (binary predates v2)")
+    else:
+        move = parse_bestmove(lines)[1]
+        g = Bughouse(AX, BX)
+        g.push(1, move)
+        fed_mate = False
+        for r in g.legal_moves(1):
+            t = Bughouse._captured_type(g.boards[1], chess.Move.from_uci(r))
+            if not t:
+                continue
+            g2 = g.copy()
+            g2.push(1, r)
+            for d in g2.legal_moves(0):
+                if d.startswith(chess.piece_symbol(t).upper() + "@"):
+                    g3 = g2.copy()
+                    g3.push(0, d)
+                    fed_mate |= g3.is_checkmate(chess.WHITE, False)
+        check(not fed_mate and rep["reason"] == "exposure_veto" and int(s["exposed"]) > 0,
+              "v2 exposure veto avoids feeding a mating queen", f"{move} reason={rep['reason']} veto={s.get('veto')}")
+    e.setoption("Seat", "Awhite")
+    e.setoption("Team", "white")
+
     # 7. Voluntary waiting. A: white (us) in check by Rh1, king can move,
     # a queen would block. B: black (partner) to move, only Kxg7 (a queen).
     AW = "7k/8/8/8/8/8/8/K6r[] w - - 0 1"

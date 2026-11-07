@@ -93,6 +93,8 @@ struct Candidate {
   std::vector<Scenario> scen;            // [0] = no-arrival when enemy scenarios exist
   bool hasL = false, hasR = false, hasF = false;
   int L = 0, R = 0, F = 0, S = 0;
+  bool exposed = false;                  // v2: feeds a verified mating drop
+  std::string exposure;
 };
 
 struct ProbeCache {
@@ -116,6 +118,98 @@ struct ProbeCache {
 };
 
 std::string json_str(const std::string& s) { return "\"" + s + "\""; }
+
+/// v2 exposure check. After our move m, can the opponent capture a piece on
+/// our board whose transfer lets their partner drop it for an immediate
+/// team mate on the partner board (joint referee)? If our partner is on turn
+/// there, the check assumes the opponent moves first (pessimistic), unless
+/// our partner is in check (then the position is skipped).
+// Can the opponent's partner, holding `fed`, drop it on Y for an immediate
+// team mate (joint referee)? Their side must be on move on Y.
+bool drop_mates(const CoordinatorContext& ctx, TeamState& probe, int Y, Piece fed, std::string& how) {
+  const Position& py = probe.pos(Y);
+  for (const auto& dm : MoveList<LEGAL>(py))
+  {
+      if (type_of(dm) != DROP || in_hand_piece_type(dm) != type_of(fed) || !py.gives_check(dm))
+          continue;
+      std::string dropUci = UCI::move(py, dm);
+      TeamUndo u = probe.play_undoable(Y, dm);
+      bool mated = probe.is_checkmate(ctx.team, ctx.advantage[ctx.team]);
+      probe.undo(u);
+      if (mated)
+      {
+          how = std::string(1, "AB"[Y]) + dropUci;
+          return true;
+      }
+  }
+  return false;
+}
+
+std::string with_turn(const std::string& fen, Color c) {
+  std::istringstream ss(fen);
+  std::vector<std::string> f;
+  std::string tok, out;
+  while (ss >> tok)
+      f.push_back(tok);
+  if (f.size() >= 4)
+      f[1] = c == WHITE ? "w" : "b", f[3] = "-";
+  for (size_t i = 0; i < f.size(); ++i)
+      out += (i ? " " : "") + f[i];
+  return out;
+}
+
+/// v2 exposure check. After our move m, can the opponent capture a piece on
+/// our board whose transfer lets their partner drop it for an immediate
+/// team mate on the partner board (joint referee)? When our partner is on
+/// turn on the partner board: in check, every partner reply is tried (the
+/// threat counts only if all of them still allow the mate); otherwise the
+/// opponent is assumed to move there first (pessimistic).
+bool feeds_mate(const CoordinatorContext& ctx, TeamState& work, Move m, std::string& how) {
+  const int X = ctx.board, Y = 1 - ctx.board;
+  bool exposed = false;
+  TeamUndo u = work.play_undoable(X, m);
+  MoveList<LEGAL> replies(work.pos(X));
+  for (const auto& r : replies)
+  {
+      if (exposed)
+          break;
+      PieceType t = TeamState::captured_type(work.pos(X), r);
+      if (t == NO_PIECE_TYPE)
+          continue;
+      std::string rUci = UCI::move(work.pos(X), r);
+      TeamUndo u2 = work.play_undoable(X, r);    // piece goes to the opponent on Y
+      Piece fed = u2.transfer.piece;
+      Color dropper = color_of(fed);              // opponent's colour on Y
+      std::string fenX = work.fen(X), fenY = work.fen(Y), drop;
+      auto build = [&](TeamState& p, const std::string& fy) {
+          std::string err;
+          return p.reset(X == BOARD_A ? fenX : fy, X == BOARD_A ? fy : fenX, err);
+      };
+      TeamState probe;
+      if (work.pos(Y).side_to_move() == dropper)
+          exposed = build(probe, fenY) && drop_mates(ctx, probe, Y, fed, drop);
+      else if (!work.pos(Y).checkers())
+          exposed = build(probe, with_turn(fenY, dropper)) && drop_mates(ctx, probe, Y, fed, drop);
+      else if (build(probe, fenY))
+      {
+          MoveList<LEGAL> partnerMoves(probe.pos(Y));
+          exposed = partnerMoves.size() > 0 && partnerMoves.size() <= 12;
+          for (const auto& p : partnerMoves)
+          {
+              if (!exposed)
+                  break;
+              TeamUndo u3 = probe.play_undoable(Y, p);
+              exposed = drop_mates(ctx, probe, Y, fed, drop);
+              probe.undo(u3);
+          }
+      }
+      if (exposed)
+          how = rUci + ">" + drop;
+      work.undo(u2);
+  }
+  work.undo(u);
+  return exposed;
+}
 
 } // namespace
 
@@ -294,6 +388,73 @@ Decision coordinate(CoordinatorContext& ctx) {
       log.set("deliveries", std::to_string(added));
   }
 
+  // ---- v2: veto candidates that feed the opponent's partner a mating drop
+  int exposedCount = 0;
+  for (auto& c : cands)
+      exposedCount += c.exposed = feeds_mate(ctx, work, c.move, c.exposure);
+  log.set("exposed", std::to_string(exposedCount));
+  if (cands[0].exposed && exposedCount == int(cands.size()))
+  {
+      // Safety discovery: every candidate is exposed; look for safe moves.
+      std::vector<Move> safe;
+      int scanned = 0;
+      for (const auto& mv : legal)
+      {
+          uint64_t gn; TimePoint gt;
+          if (!ctx.budget.passthrough() && !ctx.budget.grant(Phase::DISCOVERY, gn, gt))
+              break;
+          bool known = false;
+          for (const auto& c : cands)
+              known |= c.move == Move(mv);
+          if (known)
+              continue;
+          std::string how;
+          ++scanned;
+          if (!feeds_mate(ctx, work, mv, how))
+              safe.push_back(mv);
+      }
+      log.set("safety_scanned", std::to_string(scanned));
+      log.set("safety_found", std::to_string(safe.size()));
+      if (!safe.empty())
+      {
+          Move pick = safe.front();
+          ProbeResult sr = run_main_search(ctx.actual, ctx.board, ctx.budget, Phase::DISCOVERY, &log, safe, 1, "safety");
+          if (sr.status == ProbeResult::OK && sr.finalMove != MOVE_NONE
+              && std::count(safe.begin(), safe.end(), sr.finalMove))
+              pick = sr.finalMove;
+          add_candidate(pick, "safety");
+      }
+  }
+  // The safe alternative to an exposed main choice: best S when every
+  // candidate is scored, otherwise the first safe one in candidate order.
+  auto safe_choice = [&](bool byS) -> const Candidate* {
+      const Candidate* best = nullptr;
+      for (size_t i = 1; i < cands.size(); ++i)
+      {
+          const Candidate& c = cands[i];
+          if (c.exposed || (byS && !c.hasL))
+              continue;
+          if (!best || (byS && (c.S > best->S || (c.S == best->S && c.uci < best->uci))))
+              best = &c;
+      }
+      return best;
+  };
+  auto veto = [&](bool byS, Decision& dec) {
+      if (!cands[0].exposed)
+          return false;
+      const Candidate* s = safe_choice(byS);
+      if (!s)
+      {
+          log.set("veto", "no_safe_candidate");
+          return false;
+      }
+      dec.move = s->move;
+      log.set("override", "1");
+      log.set("override_source", s->source);
+      log.set("veto", cands[0].exposure);
+      return true;
+  };
+
   // ---- simulated hands: one scenario per partner-board capture after m
   int enemyScen = 0, friendlyScen = 0, dedup = 0;
   for (auto& c : cands)
@@ -404,8 +565,10 @@ Decision coordinate(CoordinatorContext& ctx) {
   auto extend_main = [&](const std::string& why) {
       ProbeResult ext = run_main_search(ctx.actual, ctx.board, ctx.budget, Phase::COMPARE, &log, {}, 1, "extension");
       log.set("extension_depth", std::to_string(ext.depth));
+      std::string how;
       if (ext.status == ProbeResult::OK && ext.finalMove != MOVE_NONE
-          && ext.depth >= ctx.main.depth && legal.contains(ext.finalMove))
+          && ext.depth >= ctx.main.depth && legal.contains(ext.finalMove)
+          && (ext.finalMove == M || cands[0].exposed || !feeds_mate(ctx, work, ext.finalMove, how)))
       {
           d.move = ext.finalMove;
           log.set("extension_used", "1");
@@ -427,6 +590,7 @@ Decision coordinate(CoordinatorContext& ctx) {
              << ",\"R\":" << (c.hasR ? std::to_string(c.R) : "null")
              << ",\"F\":" << (c.hasF ? std::to_string(c.F) : "null")
              << ",\"S\":" << (c.hasL && c.hasR && c.hasF ? std::to_string(c.S) : "null")
+             << ",\"exposed\":" << json_str(c.exposed ? c.exposure : "")
              << ",\"scenarios\":[";
           for (size_t k = 0; k < c.scen.size(); ++k)
           {
@@ -452,6 +616,8 @@ Decision coordinate(CoordinatorContext& ctx) {
   if (!complete)
   {
       report_candidates(0);
+      if (veto(false, d))
+          return finish(d, "exposure_veto");
       return extend_main("partial_coverage");
   }
 
@@ -471,15 +637,21 @@ Decision coordinate(CoordinatorContext& ctx) {
   report_candidates(cmp.depth);
 
   if (cmp.status != ProbeResult::OK || cmp.depth == 0 || !cands[0].hasL)
+  {
+      if (veto(false, d))
+          return finish(d, "exposure_veto");
       return finish(d, "compare_incomplete");
+  }
+  if (veto(true, d) || veto(false, d))
+      return finish(d, "exposure_veto");
 
   // ---- S rule: replace the main choice only by at least 20 cp
   const Candidate* best = nullptr;
   for (size_t i = 1; i < cands.size(); ++i)
   {
       const Candidate& c = cands[i];
-      if (!c.hasL)
-          continue;                      // no score at the common depth: ineligible
+      if (!c.hasL || c.exposed)
+          continue;                      // unscored at the common depth, or exposed: ineligible
       if (!best || c.S > best->S || (c.S == best->S && c.uci < best->uci))
           best = &c;
   }
