@@ -193,18 +193,22 @@ void controller(Search::LimitsType limits) {
   if (onTurn && legal.size() && !d.pass)
   {
       Budget budget(limits, coordination);
+      CoordinatorContext ctx{ts, sc.seat, sc.team, sc.board, sc.us,
+                             {sc.advantage[WHITE], sc.advantage[BLACK]},
+                             {sc.advantageKnown[WHITE], sc.advantageKnown[BLACK]},
+                             sc.clocksKnown,
+                             {sc.clocks[0], sc.clocks[1], sc.clocks[2], sc.clocks[3]},
+                             verdict, mainResult, fallback, budget,
+                             ChildWorker::get(), log};
+      // Prices are measured first so the main search can use them.
+      if (coordination)
+          prepare_feed_prices(ctx);
       mainResult = run_main_search(ts, sc.board, budget, Phase::MAIN, &log);
       searched = true;
       if (coordination)
       {
-          CoordinatorContext ctx{ts, sc.seat, sc.team, sc.board, sc.us,
-                                 {sc.advantage[WHITE], sc.advantage[BLACK]},
-                                 {sc.advantageKnown[WHITE], sc.advantageKnown[BLACK]},
-                                 sc.clocksKnown,
-                                 {sc.clocks[0], sc.clocks[1], sc.clocks[2], sc.clocks[3]},
-                                 verdict, mainResult, fallback, budget,
-                                 ChildWorker::get(), log};
           d = coordinate(ctx);
+          set_feed_prices_planned(false);
       }
       else if (mainResult.status == ProbeResult::OK && mainResult.finalMove != MOVE_NONE)
           d.move = mainResult.finalMove, d.reason = "main";
@@ -285,6 +289,10 @@ void on_hypebeast_option() {
   FrozenHands = on;
   if (on && Options["UCI_Variant"] != "bughouse")
       Options["UCI_Variant"] = std::string("bughouse");
+  // Upstream's 16 MB default overflows on the millions of nodes one move
+  // searches here. An explicitly chosen size is kept.
+  if (on && int(Options["Hash"]) == 16)
+      Options["Hash"] = std::string("256");
 }
 
 void position(std::istringstream& is) {

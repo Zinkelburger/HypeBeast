@@ -217,6 +217,8 @@ void init(OptionsMap& o) {
   // HypeBeast arena mode (off by default: upstream behaviour)
   o["HypeBeast"]             << Option(false, on_hypebeast);
   o["Coordination"]          << Option(true);
+  o["HBFeedPrices"]          << Option(true);   // price captures across boards in the main search
+  o["HBStall"]               << Option(true);   // sit to deny a verified fed mate when the clocks allow
   o["Seat"]                  << Option("Awhite", {"Awhite", "Ablack", "Bwhite", "Bblack"});
   o["Clocks"]                << Option("");
   // Arena/HiveMind names and semantics: Team white = White on A + Black on B

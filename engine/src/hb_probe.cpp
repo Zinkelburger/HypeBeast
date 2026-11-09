@@ -29,6 +29,7 @@ namespace {
 
 TranspositionTable ChildTT;   // the child worker's own table (swapped with TT)
 ChildWorker* Worker = nullptr;
+bool FedPlanned = false;      // use feed prices in main-pool searches of this go
 
 // RAII: install the child thread and table for the duration of one search.
 struct ChildScope {
@@ -237,12 +238,14 @@ bool Budget::grant(Phase p, uint64_t& nodes, TimePoint& movetimeMs) const {
   return true;
 }
 
+void set_feed_prices_planned(bool on) { FedPlanned = on; }
+
 // ------------------------------------------------------------- main search
 
 ProbeResult run_main_search(const TeamState& ts, int board, Budget& budget,
                             Phase phase, DecisionLog* log,
                             const std::vector<Move>& searchMoves, size_t multiPV,
-                            const std::string& tag) {
+                            const std::string& tag, double share) {
   ProbeResult r;
   TimePoint t0 = now();
   const Position& actual = ts.pos(board);
@@ -289,6 +292,11 @@ ProbeResult run_main_search(const TeamState& ts, int board, Budget& budget,
           if (log) log->add(phase, tag, r);
           return r;
       }
+      if (share < 1.0)
+      {
+          n = uint64_t(double(n) * share);
+          ms = TimePoint(double(ms) * share);
+      }
       limits.nodes = int64_t(n);
       // movetime is measured from limits.startTime (the 'go' arrival)
       limits.movetime = ms ? (now() - limits.startTime) + ms : 0;
@@ -306,10 +314,12 @@ ProbeResult run_main_search(const TeamState& ts, int board, Budget& budget,
   // Node checks start fresh (upstream carries callsCnt over between searches,
   // which lets a node-limited search overshoot by up to 1024 nodes).
   Threads.main()->callsCnt = 0;
+  FedActive = FedPlanned;
   Threads.start_thinking(const_cast<Position&>(actual), states, limits);
   if (Budget::cancelled())
       Threads.stop = true;
   Threads.main()->wait_for_search_finished();
+  FedActive = false;
   Search::HBHook = saved;
 
   r.status = ProbeResult::OK;

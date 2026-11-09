@@ -1675,6 +1675,10 @@ Value Eval::evaluate(const Position& pos) {
           v += pos.material_counting_result() / (10 * std::max(2 * pos.n_move_rule() - pos.rule50_count(), 1));
   }
 
+  // HypeBeast: what the captures since the search root are worth across boards
+  if (HB::FedActive)
+      v += pos.hb_fed();
+
   // Guarantee evaluation does not hit the virtual win/loss range
   if (pos.two_boards() && std::abs(v) >= VALUE_VIRTUAL_MATE_IN_MAX_PLY)
       v += v > VALUE_ZERO ? MAX_PLY + 1 : -MAX_PLY - 1;

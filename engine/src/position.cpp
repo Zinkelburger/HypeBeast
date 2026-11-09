@@ -36,7 +36,12 @@ using std::string;
 
 namespace Stockfish {
 
-namespace HB { bool FrozenHands = false; }
+namespace HB {
+  bool  FrozenHands = false;
+  bool  FedActive = false;
+  Color FedRoot = WHITE;
+  int   FedGain[COLOR_NB][PIECE_TYPE_NB] = {};
+}
 
 namespace Zobrist {
 
@@ -1640,6 +1645,8 @@ void Position::do_move(Move m, StateInfo& newSt, bool givesCheck) {
   st->capturedpromoted = is_promoted(to);
   st->unpromotedCapturedPiece = captured ? unpromoted_piece_on(to) : NO_PIECE;
   st->pass = is_pass(m);
+  if (HB::FedActive && captured)
+      st->hbFed += (us == HB::FedRoot ? 1 : -1) * HB::FedGain[us][st->capturedpromoted ? PAWN : type_of(captured)];
 
   assert(color_of(pc) == us);
   assert(captured == NO_PIECE || color_of(captured) == (type_of(m) != CASTLING ? them : us));

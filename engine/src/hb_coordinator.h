@@ -31,12 +31,30 @@ namespace Coef {
   constexpr Depth  ProbeDepth        = 3;       // local plies after the candidate, plus qsearch
   constexpr uint64_t ProbeNodeCap    = 100000;  // equal cap for every paired probe
   constexpr int    FiniteCap         = 2000;
-  constexpr int    RCap              = 150;
-  constexpr int    FCap              = 100;
+  constexpr int    RCap              = 400;     // after halving: a threat, not a verdict
+  constexpr int    RDiv              = 2;
+  constexpr int    FCap              = 100;     // only without feed prices
   constexpr int    SwitchMargin      = 20;
   constexpr int    WaitMs            = 3000;
   constexpr int    WaitReserveMs     = 1000;
   constexpr int    SafetyCheckLimit  = 20000;   // positions in the waiting safety check
+
+  // Feed prices: half the measured gain, because a piece in hand is not
+  // always usable at once; a mate seen on the other board is priced apart.
+  constexpr int    PriceDiv          = 2;
+  constexpr int    PriceCap          = 500;
+  constexpr int    MatePriceOurs     = 800;
+  constexpr int    MatePriceTheirs   = 1500;
+  constexpr int    PriceMinMs        = 500;     // shorter searches skip prices
+  constexpr uint64_t PriceMinNodes   = 200000;
+
+  // A soft warning only moves us if the safer move is about this close.
+  constexpr int    SoftSwitchBound   = 600;
+
+  // Stalling: our clock must beat the seat we would race on the other board.
+  constexpr int    StallReserveMs    = 8000;
+  constexpr int    StallLeadMs       = 500;
+  constexpr int    StallPartnerMs    = 2500;    // extra lead while our partner must move first
 }
 
 /// What the controller returns for one 'go'.
@@ -67,8 +85,14 @@ struct CoordinatorContext {
   DecisionLog& log;
 };
 
+/// Before the main search: measure what each piece type is worth to each
+/// team on the partner board, and install those prices for this go's
+/// main-pool searches. Short searches skip this and use the F term instead.
+void prepare_feed_prices(CoordinatorContext& ctx);
+
 /// Choose our move after the main search. Returns a legal move of
-/// ctx.actual.pos(ctx.board). Uses the rest of the go budget.
+/// ctx.actual.pos(ctx.board), or pass=true to stall. Uses the rest of the
+/// go budget.
 Decision coordinate(CoordinatorContext& ctx);
 
 /// Voluntary waiting (PLAN.md 5.4), evaluated before any search when our

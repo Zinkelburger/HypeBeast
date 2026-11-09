@@ -2,6 +2,46 @@
 
 Revision 7 — 2026-11-06. Replaces revision 6 and its phase ordering.
 
+## Revision 8 (engine v3, 2026-11-09): what the first matches changed
+
+The v1 match against HiveMind (+17 -22 =1) and its logs overrode these parts of
+revision 7. Where this section and the text below disagree, this section wins.
+
+Why: in 20 of 22 losses the mate was a drop of a piece captured on the other
+board, and the main search could not see that. In 9 of those 20 the seat's own
+probe scored the arriving piece as mate, and the -150 cap on R let it play on.
+Waiting was reached on 12 of 1156 decisions and HypeBeast never sat.
+
+- **Feed prices (replaces F in S).** Before the main search, partner probes
+  measure what each piece type is worth to each team on the other board. The
+  eval adds that at every capture in main and comparison searches (half the
+  gain, capped at 500 cp; 800 or 1500 cp when a probe sees mate). L therefore
+  includes cross-board value, so S = L + max(R/2, -400). Prices reset per go, so
+  the main TT is cleared per go. Searches under 500 ms or up to 200k nodes skip
+  prices and keep the old F term. `HBFeedPrices=false` turns this off.
+- **Exposure tiers (replaces the capped-R treatment of mate and v2's veto).**
+  CERTAIN: a referee-verified capture then mating drop, in either direction,
+  including the seat whose move hands over the turn on the mating board. SOFT:
+  the same but assuming our partner fails to move away, or a probe scores the
+  arrival as mate. A CERTAIN main choice yields to any safer move that is not
+  itself mated. A SOFT one yields only to a safe move within 600 cp.
+- **Stalling (new).** If a CERTAIN main choice has no safe alternative, or only
+  one more than 600 cp worse, the seat sits, because an opponent cannot capture
+  or drop until we move. This needs at least 8 s on our clock and a 0.5 s lead
+  over the same-colour seat on the other board (3 s if our partner must move
+  first). `HBStall=false` turns this off.
+- **Delivery wins and waiting (replaces section 5.4's voluntary rule).** A
+  capture that lets our on-turn partner mate at once is played, unless the
+  opponent can win first. Both seats run the same check, so the other seat may
+  wait 3 s for it with no clock lead. The old every-partner-move-captures wait
+  remains only for needing a block while in check. The time-advantage gate is
+  gone: for a board B seat it measured the wrong clocks.
+- **Budget and hash.** Slices are 72/6/20/2 rather than 60/10/25/5. HypeBeast
+  mode raises the default 16 MB hash to 256 MB.
+
+These coefficients are engineering defaults, not tuned values. Their test is the
+match on `debug.txt` against v2, then a fresh held-out sample.
+
 ## 1. What to build
 
 Build a CPU bughouse team engine using Fairy-Stockfish's existing search and
@@ -356,6 +396,31 @@ Deferred: retraining, partner NNUE inputs, probabilistic arrival trees, longer
 forecasts, deep transfer eval terms, general search tuning, custom piece values,
 a new mate solver, and native CECP team benchmarking. Select later work from
 observed losses rather than a mandatory training phase.
+
+## Later: chance inside the tree (agreed 2026-11-09, not started)
+
+Do this only after the root-level version shows a measured gain over v3.
+
+The root-level version (v4) forecasts arrivals from the partner board's top
+lines, searches our board once per arrival package ("world"), and picks the move
+with the best probability-weighted result. Its limit: pieces arrive only at the
+first move. A piece that would arrive several moves into a line is not modelled.
+
+The later version puts the arrival inside the search:
+
+- At a node where a forecast arrival is due, the search branches on "it arrives"
+  and "it does not", and the node's value is the probability-weighted average of
+  the two, taken in winning chances, not centipawns.
+- The damage or benefit of a piece is never a fixed number. It comes from
+  searching with the piece actually in hand, so it shrinks when a line closes
+  the weakness and grows when a line opens one.
+- Arrivals cost a tempo and are limited to pieces the forecast says can be
+  captured on the other board, with the forecast's probability. This is the
+  difference from upstream virtual drops, which allow any piece and count a line
+  only if it ends in mate.
+- Open problems to solve then: averaging breaks plain alpha-beta cutoffs, the
+  transposition table must not mix values from different hands, and the cost
+  has to be bounded (depth gate, node cap, at most one or two arrivals per line).
 
 ## Sources and entry points
 

@@ -71,11 +71,11 @@ def main() -> int:
     check(int(d["total_nodes"]) == sum(r["nodes"] for r in rs), "budget charged with every child node",
           f"total={d['total_nodes']}")
 
-    # Exhaustion: the first probe takes the whole probe allowance (95% of the
+    # Exhaustion: the first probe takes the whole probe allowance (98% of the
     # budget with nothing spent earlier), later ones get no budget.
     rs, done = probes(e, "nodes 30000 count 3 clear 1")
     d = done_fields(done)
-    check(rs[0]["status"] == "ok" and rs[0]["granted_nodes"] == 28500
+    check(rs[0]["status"] == "ok" and rs[0]["granted_nodes"] == 29400
           and [r["status"] for r in rs[1:]] == ["no_budget", "no_budget"],
           "budget exhaustion", f"granted={rs[0]['granted_nodes']} statuses={[r['status'] for r in rs]}")
     check(int(d["total_nodes"]) <= 30000 + 1024, "total nodes within budget (+check granularity)",
@@ -105,7 +105,7 @@ def main() -> int:
     check(len(oks) >= 4 and all(r["ms"] <= 130 for r in oks) and int(d["elapsed_ms"]) <= 1000,
           "time-sliced probes respect caps and deadline",
           f"ms={[r['ms'] for r in rs]} elapsed={d['elapsed_ms']} wall={wall:.0f}")
-    # One probe without a cap must stop at the cumulative probe deadline (95%).
+    # One probe without a cap must stop at the cumulative probe deadline (98%).
     rs, done = probes(e, "movetime 800 count 2")
     d = done_fields(done)
     check(rs[0]["status"] == "ok" and int(d["elapsed_ms"]) <= 800 and rs[1]["status"] == "no_budget",
@@ -156,8 +156,8 @@ def main() -> int:
             check(legal and s.get("decision") == a, f"{cmd} coord={coord} legal", f"{a} reason={s.get('reason')} "
                   f"nodes={s.get('total_nodes')} elapsed={s.get('elapsed_ms')}")
 
-    # Budget split in real go: coordination on gives main <= 60% of nodes.
-    for coord, share in (("true", 0.60), ("false", 1.0)):
+    # Budget split in real go: coordination on gives main <= 72% of nodes.
+    for coord, share in (("true", 0.72), ("false", 1.0)):
         e.setoption("Coordination", coord)
         e.send(POS)
         lines = e.go("go nodes 200000")
@@ -180,7 +180,7 @@ def main() -> int:
             wall = (time.monotonic() - t0) * 1000
             s = summary_fields(lines)
             el = int(s["elapsed_ms"])
-            limit = 0.60 * mt if coord == "true" else mt
+            limit = 0.72 * mt if coord == "true" else mt
             check(el <= mt + 15 and int(s["main_nodes"]) > 0, f"go movetime {mt} coord={coord}",
                   f"elapsed={el} wall={wall:.0f} main_depth={s['main_depth']} (main slice {limit:.0f} ms)")
 

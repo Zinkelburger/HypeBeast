@@ -56,6 +56,7 @@ struct StateInfo {
   Square castlingKingSquare[COLOR_NB];
   Bitboard wallSquares;
   Bitboard gatesBB[COLOR_NB];
+  int    hbFed;            // HypeBeast: cross-board value of captures since the search root
 
   // Not copied when making a move (will be recomputed anyhow)
   Key        key;
@@ -108,6 +109,13 @@ namespace HB {
   // not actually in hand) are disabled in move generation and legality,
   // including quiescence. False (upstream behaviour) unless HypeBeast is on.
   extern bool FrozenHands;
+  // HypeBeast feed prices: while FedActive (main-pool searches only) every
+  // capture adds what the captured piece is worth on the partner board.
+  // FedGain[c][pt] is the gain, in internal units, for side c capturing a pt.
+  // The running total lives in StateInfo::hbFed, seen from FedRoot.
+  extern bool  FedActive;
+  extern Color FedRoot;
+  extern int   FedGain[COLOR_NB][PIECE_TYPE_NB];
 }
 
 class Position {
@@ -312,6 +320,14 @@ public:
   // NNUE accumulator of the current state invalidated).
   void hb_add_to_hand(Piece pc);
   void hb_remove_from_hand(Piece pc);
+  // Running feed-price total from the side to move's point of view.
+  int hb_fed() const { return sideToMove == HB::FedRoot ? st->hbFed : -st->hbFed; }
+  // What capturing with m adds on the partner board, for the side to move.
+  int hb_fed_gain(Move m) const {
+    Square to = to_sq(m);
+    Piece pc = piece_on(to);
+    return pc == NO_PIECE ? 0 : HB::FedGain[sideToMove][is_promoted(to) ? PAWN : type_of(pc)];
+  }
   void do_null_move(StateInfo& newSt);
   void undo_null_move();
 

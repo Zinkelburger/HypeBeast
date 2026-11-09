@@ -55,13 +55,18 @@ def main() -> int:
     A1 = "4k3/1p6/n7/8/8/R7/5PPP/4K3[] w - - 0 1"
     B1 = "k7/8/8/8/8/8/6PP/6RK[] b - - 0 1"
     lines, rep, s, _ = coord(e, A1, B1)
+    check(parse_bestmove(lines)[0] == "a3a6" and rep["reason"].startswith("delivery_win"),
+          "verified delivery win is played at once", f"{parse_bestmove(lines)} reason={rep['reason']}")
+    # The same capture with the partner not on turn is not a verified win: it
+    # is only a candidate, and prices put its value into L (S has no F term).
+    B1w = "k7/8/8/8/8/8/6PP/6RK[] w - - 0 1"
+    lines, rep, s, _ = coord(e, A1, B1w)
     c = cand(rep, "a3a6")
-    check(c is not None and c["source"] == "delivery" and c["delivery"] == "N" and c["mating"]
-          and c["F"] is not None and c["F"] > 0,
-          "delivery outside the root top three is a candidate (verified mating delivery)",
+    check(c is not None and c["delivery"] == "N" and c["F"] is not None and c["F"] > 0,
+          "delivery is a candidate when the partner is not on turn",
           f"{c and {k: c[k] for k in ('source', 'L', 'F', 'S')}} reason={rep['reason']}")
-    check(c is not None and c["S"] == c["L"] + max(-150, min(0, c["R"])) + max(-100, min(100, c["F"])),
-          "S = L + clamp(R) + clamp(F) as written")
+    check(c is not None and s.get("prices") == "1" and c["S"] == c["L"] + max(-400, int(c["R"] / 2)),
+          "S = L + bounded R/2 with prices on", f"{c and (c['L'], c['R'], c['S'])}")
     main_c = rep["candidates"][0]
     check(main_c["source"] == "main" and rep["reason"] in ("kept_main", "override")
           and (rep["reason"] == "override") == (max(x["S"] for x in rep["candidates"][1:]) >= main_c["S"] + 20),
@@ -172,8 +177,88 @@ def main() -> int:
         main_safe = rep["candidates"][0]["exposed"] == ""
         check(not fed_mate and (rep["reason"] == "exposure_veto" or main_safe),
               "v2 exposure veto avoids feeding a mating queen", f"{move} reason={rep['reason']} veto={s.get('veto')}")
+        prices = next((json.loads(l[len("info string hb_prices "):]) for l in lines
+                       if l.startswith("info string hb_prices ")), None)
+        check(prices is not None and prices["theirs"]["Q"] == 1500 and prices["ours"]["Q"] < 1500,
+              "feed prices: a queen that mates the partner board is priced as fatal", str(prices))
+        # Upstream only prints hashfull on searches over 3 seconds.
+        e.setoption("Seat", "Awhite")
+        long_lines, *_ = coord(e, A2, B2, "go movetime 4500")
+        full = [int(l.split(" hashfull ")[1].split()[0]) for l in long_lines if " hashfull " in l]
+        check(bool(full) and max(full) < 500, "hash is not overloaded on a long search", f"max hashfull {max(full, default=None)}")
+
+    def fed_mate_after(fa: str, fb: str, move: str) -> bool:
+        """Our A move, then an opponent capture on B, then a mating drop on A."""
+        g = Bughouse(fa, fb)
+        g.push(0, move)
+        for r in g.legal_moves(1):
+            t = Bughouse._captured_type(g.boards[1], chess.Move.from_uci(r))
+            if not t:
+                continue
+            g2 = g.copy()
+            g2.push(1, r)
+            for d in g2.legal_moves(0):
+                if d.startswith(chess.piece_symbol(t).upper() + "@"):
+                    g3 = g2.copy()
+                    g3.push(0, d)
+                    if g3.is_checkmate(chess.WHITE, False):
+                        return True
+        return False
+
+    # 9. Direction 2: white on B is on turn and can take our queen. Black on A
+    # can use it as soon as our A move hands black the turn: only moves that
+    # keep the rook on the second rank stop Q@g2 mate.
     e.setoption("Seat", "Awhite")
     e.setoption("Team", "white")
+    e.send("ucinewgame")
+    BD = "4k3/8/8/8/8/8/3q4/3QK3[] w - - 0 1"
+    AD = "6rk/8/8/8/8/8/R6P/7K[] w - - 0 1"
+    lines, rep, s, _ = coord(e, AD, BD)
+    move = parse_bestmove(lines)[0]
+    check(not fed_mate_after(AD, BD, move), "direction 2: avoids the partner-board feed",
+          f"{move} reason={rep['reason']} tiers={[(c['move'], c['tier']) for c in rep.get('candidates', [])]}")
+
+    # 10. Stalling. Both legal moves allow the fed mate. Our clock beats the
+    # white seat on B by 10 s, so we sit; black on A cannot drop until we move.
+    AS = "6rk/8/8/8/8/8/7P/7K[] w - - 0 1"
+    ahead = (60000, 60000, 50000, 60000)
+    e.send("ucinewgame")
+    lines, rep, s, wake = coord(e, AS, BD, "go movetime 1000", ahead, adv=True)
+    check(parse_bestmove(lines)[0] == "pass" and s.get("reason") == "stall_deny"
+          and wake == ["info string hb_wake_after_ms=52000"],
+          "stall: sits with a clock lead when every move allows the fed mate",
+          f"{parse_bestmove(lines)} reason={s.get('reason')} wake={wake}")
+    lines, rep, s, wake = coord(e, AS, BD, "go movetime 1000", (55000, 60000, 45000, 60000), adv=True)
+    check(parse_bestmove(lines)[0] == "pass" and s.get("wait") == "stall_continue",
+          "stall: holds without a new search while nothing has moved", f"wait={s.get('wait')}")
+    e.send("ucinewgame")
+    lines, rep, s, wake = coord(e, AS, BD, "go movetime 1000", (50000, 60000, 50000, 60000), adv=False)
+    check(parse_bestmove(lines)[0] != "pass", "stall: no lead, no stall", f"{parse_bestmove(lines)} reason={s.get('reason')}")
+    e.send("ucinewgame")
+    lines, rep, s, wake = coord(e, AS, BD, "go movetime 1000", (7000, 60000, 1000, 60000), adv=True)
+    check(parse_bestmove(lines)[0] != "pass", "stall: keeps a clock reserve", f"{parse_bestmove(lines)} reason={s.get('reason')}")
+    e.setoption("HBStall", "false")
+    e.send("ucinewgame")
+    lines, rep, s, wake = coord(e, AS, BD, "go movetime 1000", ahead, adv=True)
+    check(parse_bestmove(lines)[0] != "pass", "stall: HBStall=false never sits", f"{parse_bestmove(lines)}")
+    e.setoption("HBStall", "true")
+
+    # 11. Shared convention: our partner (black on B) can take a knight that
+    # gives us N@f7 mate. It takes it, and we wait for it, with no clock lead.
+    AK = "6rk/6pp/8/8/8/8/8/K7[] w - - 0 1"
+    BK = "r3k3/8/8/8/8/8/8/N3K3[] b - - 0 1"
+    e.send("ucinewgame")
+    lines, rep, s, wake = coord(e, AK, BK, "go movetime 300", (60000, 60000, 70000, 60000), adv=False)
+    check(parse_bestmove(lines)[0] == "pass" and s.get("wait") == "start",
+          "wait: partner's verified winning delivery, no lead needed", f"{parse_bestmove(lines)} wait={s.get('wait')}")
+    e.send("ucinewgame")
+    e.setoption("Seat", "Bblack")
+    lines, rep, s, _ = coord(e, AK, BK, "go movetime 1000", (60000, 60000, 70000, 60000), adv=False)
+    check(parse_bestmove(lines)[1] == "a8a1" and rep["reason"].startswith("delivery_win"),
+          "delivery: the partner takes the same conclusion", f"{parse_bestmove(lines)} reason={rep['reason']}")
+    e.setoption("Seat", "Awhite")
+    e.setoption("Team", "white")
+    e.send("ucinewgame")
 
     # 7. Voluntary waiting. A: white (us) in check by Rh1, king can move,
     # a queen would block. B: black (partner) to move, only Kxg7 (a queen).
@@ -201,8 +286,8 @@ def main() -> int:
             ("partner not on turn", AW, "7k/6Q1/8/8/8/8/8/K7[] w - - 0 1", good, True, "skip_partner_not_on_turn"),
             ("low own clock", AW, BW, (3900, 50000, 1000, 60000), True, "skip_low_clock"),
             ("partner-board opponent clock too close", AW, BW, (60000, 50000, 57000, 60000), True, "skip_partner_opponent_clock"),
-            ("no time advantage", AW, BW, (40000, 50000, 50000, 60000), False, "skip_no_time_advantage"),
-            ("not in check: arrival not needed", "7k/8/8/8/8/8/7r/K7[] w - - 0 1", BW, good, True, "skip_arrival_not_needed")):
+            ("behind on the clock race", AW, BW, (40000, 50000, 50000, 60000), False, "skip_partner_opponent_clock"),
+            ("not in check, no winning delivery", "7k/8/8/8/8/8/7r/K7[] w - - 0 1", BW, good, True, "skip_no_winning_delivery")):
         e.send("ucinewgame")
         lines, rep, s, wake = coord(e, fa, fb, "go movetime 200", clocks, adv)
         check(parse_bestmove(lines)[0] != "pass" and not wake and s.get("wait") == why,

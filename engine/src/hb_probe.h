@@ -38,7 +38,7 @@ const char* phase_name(Phase p);
 /// forward. The reserve is never granted to a search. The absolute deadline
 /// and total node count override all slices.
 struct Slices {
-  double main = 0.60, discovery = 0.10, probes = 0.25, reserve = 0.05;
+  double main = 0.72, discovery = 0.06, probes = 0.20, reserve = 0.02;
 };
 
 class Budget {
@@ -147,7 +147,11 @@ std::string result_json(const ProbeResult& r);
 ProbeResult run_main_search(const TeamState& ts, int board, Budget& budget,
                             Phase phase, DecisionLog* log,
                             const std::vector<Move>& searchMoves = {},
-                            size_t multiPV = 1, const std::string& tag = "main");
+                            size_t multiPV = 1, const std::string& tag = "main",
+                            double share = 1.0);
+
+/// Feed prices apply to main-pool searches of the current go only.
+void set_feed_prices_planned(bool on);
 
 /// Sequential, reusable, single-threaded child worker. It owns a separate
 /// MainThread (own heuristics) and a separate TT, swapped in only for the

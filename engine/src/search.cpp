@@ -1696,7 +1696,8 @@ moves_loop: // When in check, search starts from here
           if (moveCount > 2)
               continue;
 
-          futilityValue = futilityBase + PieceValue[EG][pos.piece_on(to_sq(move))];
+          futilityValue = futilityBase + PieceValue[EG][pos.piece_on(to_sq(move))]
+                         + (HB::FedActive ? pos.hb_fed_gain(move) : 0);
 
           if (futilityValue <= alpha)
           {
