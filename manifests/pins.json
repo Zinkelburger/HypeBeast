@@ -10,7 +10,7 @@
     "path": "engine/ (tracked in this repo)",
     "pristine_import_commit": "97532b2dafae0b3fb344f9ddd17243cfc5eea74b",
     "pristine_engine_tree_equals_upstream_tree": true,
-    "repo_head": "69dc8561df6aa0bf1fdcece5977479569a72f787"
+    "repo_head": "c8f5abd533341d8630bdac22182bc0405741bc86"
   },
   "build": {
     "command": "make -j22 build ARCH=x86-64-bmi2 COMP=gcc (in upstream/src and engine/src)",
@@ -23,11 +23,13 @@
   "binaries": {
     "bin/fsf-ref": "6ef2fbb6c358a38d7e60985fb787e9fde414d4dcca1279677f62e8300358a05c",
     "bin/hypebeast": "20b7cec87b7e2a3d66061a86658c756c6985eb6b9ce414716e603a1c974ac21f",
-    "bin/hypebeast-v2": "3f45ba2cbab395883989e380d8135646acc050d83666a6be92e6646032d9f63a"
+    "bin/hypebeast-v2": "3f45ba2cbab395883989e380d8135646acc050d83666a6be92e6646032d9f63a",
+    "bin/hypebeast-v3": "ca5cdcad403ce037132383cfacdee9b22269d44209cf8367c338c2929b4a97ef"
   },
   "binary_notes": {
     "bin/hypebeast": "v1, frozen for the screen20 screening matches (engine commit c7c9f94)",
-    "bin/hypebeast-v2": "v2 = v1 + exposure veto (engine commit 69dc856); tuned on debug.txt only"
+    "bin/hypebeast-v2": "v2 = v1 + exposure veto (engine commit 69dc856); tuned on debug.txt only",
+    "bin/hypebeast-v3": "v3 = v2 + feed prices, exposure tiers, stalling, delivery-win waits (engine commit c8f5abd); tuned on debug.txt only"
   },
   "net": {
     "file": "nets/bughouse-cd8cceab93fe.nnue",
