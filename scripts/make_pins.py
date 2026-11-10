@@ -48,6 +48,8 @@ pins = {
         "bin/hypebeast": "v1, frozen for the screen20 screening matches (engine commit c7c9f94)",
         "bin/hypebeast-v2": "v2 = v1 + exposure veto (engine commit 69dc856); tuned on debug.txt only",
         "bin/hypebeast-v3": "v3 = v2 + feed prices, exposure tiers, stalling, delivery-win waits (engine commit c8f5abd); tuned on debug.txt only",
+        "bin/hypebeast-v4": "v4 = v3 + arrival forecast and weighted worlds (engine commit e9151b1, built before HBForecastTrustLate was added; same moves as that source in 12 of 12 fixed-node checks)",
+        "bin/hypebeast-v4b": "v4 with the HBForecastTrustLate option (default 0); played no match",
     },
     "net": {
         "file": "nets/" + net.name,

@@ -10,7 +10,7 @@
     "path": "engine/ (tracked in this repo)",
     "pristine_import_commit": "97532b2dafae0b3fb344f9ddd17243cfc5eea74b",
     "pristine_engine_tree_equals_upstream_tree": true,
-    "repo_head": "c8f5abd533341d8630bdac22182bc0405741bc86"
+    "repo_head": "e9151b1a27b80ca61900e6d6287861ad073d99e5"
   },
   "build": {
     "command": "make -j22 build ARCH=x86-64-bmi2 COMP=gcc (in upstream/src and engine/src)",
@@ -24,12 +24,16 @@
     "bin/fsf-ref": "6ef2fbb6c358a38d7e60985fb787e9fde414d4dcca1279677f62e8300358a05c",
     "bin/hypebeast": "20b7cec87b7e2a3d66061a86658c756c6985eb6b9ce414716e603a1c974ac21f",
     "bin/hypebeast-v2": "3f45ba2cbab395883989e380d8135646acc050d83666a6be92e6646032d9f63a",
-    "bin/hypebeast-v3": "ca5cdcad403ce037132383cfacdee9b22269d44209cf8367c338c2929b4a97ef"
+    "bin/hypebeast-v3": "ca5cdcad403ce037132383cfacdee9b22269d44209cf8367c338c2929b4a97ef",
+    "bin/hypebeast-v4": "20481d0df190dbfc8874ae15d1f9acb0c38f18db01059e7cb0211e17cc0b3868",
+    "bin/hypebeast-v4b": "e7b18fe8f3acdb5f256cb0b958973f8080107273c1d49d92e9dd7444617e39e2"
   },
   "binary_notes": {
     "bin/hypebeast": "v1, frozen for the screen20 screening matches (engine commit c7c9f94)",
     "bin/hypebeast-v2": "v2 = v1 + exposure veto (engine commit 69dc856); tuned on debug.txt only",
-    "bin/hypebeast-v3": "v3 = v2 + feed prices, exposure tiers, stalling, delivery-win waits (engine commit c8f5abd); tuned on debug.txt only"
+    "bin/hypebeast-v3": "v3 = v2 + feed prices, exposure tiers, stalling, delivery-win waits (engine commit c8f5abd); tuned on debug.txt only",
+    "bin/hypebeast-v4": "v4 = v3 + arrival forecast and weighted worlds (engine commit e9151b1, built before HBForecastTrustLate was added; same moves as that source in 12 of 12 fixed-node checks)",
+    "bin/hypebeast-v4b": "v4 with the HBForecastTrustLate option (default 0); played no match"
   },
   "net": {
     "file": "nets/bughouse-cd8cceab93fe.nnue",
