@@ -16,6 +16,7 @@
 //   hbstate                           -> one JSON line describing the actual state
 //   hbmakeundo [iterations N] [plies P] [seed S]   (self-test)
 //   hbprobe [nodes N|movetime M] [count K] [depth D] [clear 0|1] [fen F]  (self-test)
+//   hbforecast [nodes N|movetime M]   -> the arrival forecast for the seat on turn
 
 #ifndef HB_ARENA_H_INCLUDED
 #define HB_ARENA_H_INCLUDED
@@ -35,6 +36,7 @@ void new_game();
 void hbstate(std::istringstream& is);
 void hbmakeundo(std::istringstream& is);
 void hbprobe(std::istringstream& is);
+void hbforecast(std::istringstream& is);
 void shutdown();  // join controller and free the child worker
 
 } // namespace Stockfish::HB::Arena

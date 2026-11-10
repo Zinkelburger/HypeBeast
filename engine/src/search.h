@@ -127,6 +127,7 @@ struct HBSearchResult {
   uint64_t nodes = 0;
   // Exact (move, score) of every MultiPV line of the last completed iteration
   std::vector<std::pair<Move, Value>> lines;
+  std::vector<std::vector<Move>> linePVs; // PV of every line, same order
   std::vector<Move> rootOrder;          // first root moves in final order
 };
 

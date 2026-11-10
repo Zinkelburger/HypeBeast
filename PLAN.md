@@ -2,6 +2,69 @@
 
 Revision 7 — 2026-11-06. Replaces revision 6 and its phase ordering.
 
+## Revision 9 (engine v4, 2026-11-09): forecast the arrivals, choose over worlds
+
+Where this section and the text below disagree, this section wins.
+
+Why: v3's simulated hands looked only at captures the opponent could make on
+the partner board that instant, took the worst one, ignored pieces coming to
+us, and ran in 40% of decisions. v3 scored 12-12 against v2.
+
+- **Forecast.** Before the main search, a 4-line search of the partner board
+  (plus up to 4 captures outside those lines, searched on request) gives the
+  likely moves there. The captures in the first two plies of each line are a
+  package of arrivals on our board: pieces for us from our partner's captures,
+  pieces for our opponent from the other side's. Lines are weighted by score
+  (softmax, `HBForecastTemp` 250 cp), after adding half of what the line's
+  captures are worth on our board (`HBForecastPrice` 50), measured by depth-5
+  paired searches with and without the piece. 85% of an arrival is believed
+  (`HBForecastTrust`); the rest counts as nothing arriving.
+- **Worlds.** "Nothing arrives" plus up to three packages, each with a
+  probability. Each arrival world is searched on our board with the pieces in
+  hand (ours not droppable on the first move); its best move joins the
+  candidates. Every candidate is then scored in every world, and the move with
+  the best probability-weighted winning chance is played if it leads the main
+  choice by 25 cp-equivalent. Winning chance is logistic in the score
+  (`HBWinScale` 1000 cp) and a mate is 0 or 1. With nothing arriving, no move
+  may outrank the main search's choice, because that search is deeper.
+- **Kept from v3:** feed prices in the main search, exposure tiers, stalling,
+  delivery wins and waits. `HBWorlds=false`, or a search under 500 ms or
+  200k nodes, gives the v3 rule unchanged.
+- **Budget.** Forecast about 13% before the main search, main about 45%,
+  worlds the rest. Child hash 16 MB, cleared three times per go.
+
+How the numbers were set (tests/forecast_check.py, on the v3-vs-v2 and
+HypeBeast-vs-HiveMind game logs): temp, trust and price by log loss of the
+forecast against what arrived in the next turn (0.154 against 0.242 for the
+base rate on the HiveMind games); the win scale from 3,205 logged scores
+against results (+600 cp on one board won 56%).
+
+Measured: v4 against v3, 50 pairs of `openings/dev100.txt`, movetime 1000:
+69-31, Elo +139 (95% +68 to +210), pentanomial 4/0/23/0/23, no errors.
+`bin/hypebeast-v4` (sha256 20481d0d...) is the binary that played.
+
+v4 against HiveMind CPU (400 nodes), first 5 pairs of screen20, movetime 9652:
+8-2 (7 mates and 1 flag for, 2 mates against), 95% interval on the score 49.5%
+to 94.2%, no errors. v1 scored 2.5 of 10 on the same ten games. Ten games is a
+screen, not a strength report.
+
+**The HiveMind benchmark from 2026-11-10** (`scripts/run_hivemind_benchmark.sh`):
+HiveMind searches 1500 nodes a move, because 400 was weak. HypeBeast searches
+4,500,000 nodes a move, the mean of what v4 searched in 9652 ms in the match
+above (325 searches), so a busy machine slows the match without weakening
+either side. The clock is unchanged and virtual: a move costs 1.5-2.5 s of
+clock whatever the search took. Runs are a few pairs of screen20 at a time.
+Results at 400 nodes, including the 8-2 above, are not comparable with these.
+
+Found on the way, not yet used (`HBForecastTrustLate`, default 0): in 16 of 20
+drop mates against v1 the mating piece arrived during our last turn. One move
+earlier the 2-ply forecast gave that piece 5% or more in 4 of 20 games, a 4-ply
+reading in 15 of 20. But a capture seen only at plies 3-4 arrived within two
+turns 15-29% of the time, whatever its weight. On the lost-game sets
+(tests/loss_set.py) v4 closes the hole at its last move in 8 of 9 avoidable
+cases, 7 by a move and 1 by sitting (v1: 1, v3: 6); one move earlier nothing tested does better than 11 of
+24, and in 9 of those 24 no move escapes.
+
 ## Revision 8 (engine v3, 2026-11-09): what the first matches changed
 
 The v1 match against HiveMind (+17 -22 =1) and its logs overrode these parts of

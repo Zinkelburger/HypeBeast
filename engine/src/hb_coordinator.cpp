@@ -31,6 +31,7 @@
 // whose move is played only if it completed at least the main depth.
 
 #include <algorithm>
+#include <cmath>
 #include <map>
 #include <set>
 #include <sstream>
@@ -100,6 +101,7 @@ struct Candidate {
   std::vector<Scenario> scen;            // [0] = no-arrival when enemy scenarios exist
   bool hasL = false, hasR = false, hasF = false;
   int L = 0, R = 0, F = 0, S = 0;
+  double E = 0;                          // v4: weighted winning chances over the worlds
   int tier = 0;                          // SAFE, SOFT or CERTAIN
   bool probeFatal = false;               // a probe scored an enemy arrival as mate
   std::string exposure;
@@ -118,7 +120,9 @@ struct ProbeCache {
       req.depth = Coef::ProbeDepth;
       req.maxNodes = Coef::ProbeNodeCap;
       req.phase = phase;
-      req.clear = true;
+      // One clean start per go is enough: later probes differ in board or
+      // hand, so they cannot read each other's table entries.
+      req.clear = run == 0 || !bool(Options["HBWorlds"]);
       req.tag = tag;
       ++run;
       return results[fen] = ctx.worker.run(req, ctx.budget, &ctx.log);
@@ -129,6 +133,8 @@ std::string json_str(const std::string& s) { return "\"" + s + "\""; }
 
 ProbeCache Cache;        // this go's probes; prices and F share the partner ones
 bool PricesOn = false;   // this go's main-pool searches use feed prices
+Forecast Fc;             // this go's arrival forecast (v4)
+bool WorldsOn = false;   // this go chooses over forecast worlds
 
 enum Tier { SAFE = 0, SOFT = 1, CERTAIN = 2 };
 
@@ -381,6 +387,24 @@ void prepare_feed_prices(CoordinatorContext& ctx) {
 }
 
 
+void prepare_forecast(CoordinatorContext& ctx) {
+  Fc = Forecast();
+  WorldsOn = false;
+  Budget& b = ctx.budget;
+  bool bigEnough = b.node_limited() ? b.total_nodes() > Coef::PriceMinNodes
+                                    : b.time_limited() && b.total_ms() >= Coef::PriceMinMs;
+  if (!bool(Options["HBWorlds"]) || !bigEnough)
+      return;
+  // The forecast runs before the main search and the worlds after it.
+  b.set_slices(Slices{0.58, 0.02, 0.38, 0.02});
+  ctx.worker.set_hash_mb(Coef::WorldHashMb);
+  Fc = make_forecast(ctx);
+  WorldsOn = true;
+  ctx.log.set("worlds", std::to_string(Fc.worlds.size()));
+  ctx.log.set("p_none", std::to_string(int(std::lround(Fc.worlds[0].p * 100))));
+  sync_cout << "info string hb_forecast " << Fc.json() << sync_endl;
+}
+
 Decision coordinate(CoordinatorContext& ctx) {
   Decision d;
   const Position& root = ctx.actual.pos(ctx.board);
@@ -493,8 +517,10 @@ Decision coordinate(CoordinatorContext& ctx) {
       cands.push_back(c);
   };
   add_candidate(M, "main");
+  const int maxMain = WorldsOn ? Coef::WorldMainCandidates : Coef::MaxMainCandidates;
+  const int maxDeliveries = WorldsOn ? Coef::WorldDeliveries : Coef::MaxDeliveries;
   for (Move m : ctx.main.rootOrder)
-      if (int(cands.size()) < Coef::MaxMainCandidates)
+      if (int(cands.size()) < maxMain)
           add_candidate(m, "root");
 
   // ---- partner probes: same partner board and turn with/without each type
@@ -588,7 +614,7 @@ Decision coordinate(CoordinatorContext& ctx) {
       std::set<PieceType> used;
       int added = 0;
       for (const auto& del : dels)
-          if (added < Coef::MaxDeliveries && !used.count(del.t))
+          if (added < maxDeliveries && !used.count(del.t))
           {
               add_candidate(del.m, "delivery");
               cands.back().mating = del.mating;
@@ -701,6 +727,259 @@ Decision coordinate(CoordinatorContext& ctx) {
       return "exposure_veto";
   };
 
+  // ---- final use of the remaining budget
+  auto extend_main = [&](const std::string& why) {
+      ProbeResult ext = run_main_search(ctx.actual, ctx.board, ctx.budget, Phase::COMPARE, &log, {}, 1, "extension");
+      log.set("extension_depth", std::to_string(ext.depth));
+      std::string how;
+      if (ext.status == ProbeResult::OK && ext.finalMove != MOVE_NONE
+          && ext.depth >= ctx.main.depth && legal.contains(ext.finalMove)
+          && (ext.finalMove == M || exposure_tier(ctx, work, ext.finalMove, how) <= cands[0].tier))
+      {
+          d.move = ext.finalMove;
+          log.set("extension_used", "1");
+      }
+      return finish(d, why);
+  };
+
+  auto report_candidates = [&](int depth) {
+      js << ",\"common_depth\":" << depth << ",\"candidates\":[";
+      for (size_t i = 0; i < cands.size(); ++i)
+      {
+          const Candidate& c = cands[i];
+          js << (i ? "," : "") << "{\"move\":" << json_str(c.uci) << ",\"source\":" << json_str(c.source)
+             << ",\"delivery\":" << json_str(c.delivery != NO_PIECE_TYPE ? std::string(1, type_char(c.delivery)) : "")
+             << ",\"mating\":" << (c.mating ? "true" : "false") << ",\"blocking\":" << (c.blocking ? "true" : "false")
+             << ",\"enemy_donor\":" << (c.enemyDonor ? "true" : "false")
+             << ",\"friendly_scenarios\":" << c.friendlyScenarios << ",\"enemy_captures\":" << c.enemyCaptures
+             << ",\"L\":" << (c.hasL ? std::to_string(c.L) : "null")
+             << ",\"R\":" << (c.hasR ? std::to_string(c.R) : "null")
+             << ",\"F\":" << (c.hasF ? std::to_string(c.F) : "null")
+             << ",\"S\":" << (c.hasL && c.hasR && c.hasF ? std::to_string(c.S) : "null")
+             << ",\"E\":" << c.E
+             << ",\"tier\":" << c.tier
+             << ",\"probe_fatal\":" << (c.probeFatal ? "true" : "false")
+             << ",\"exposed\":" << json_str(c.tier ? c.exposure : "")
+             << ",\"scenarios\":[";
+          for (size_t k = 0; k < c.scen.size(); ++k)
+          {
+              const Scenario& s = c.scen[k];
+              js << (k ? "," : "") << "{\"arrival\":" << json_str(s.arrival == NO_PIECE ? "none"
+                                     : std::string(1, color_of(s.arrival) == WHITE ? type_char(type_of(s.arrival)) : char(tolower(type_char(type_of(s.arrival))))))
+                 << ",\"value\":" << (s.done ? std::to_string(s.value) : "null")
+                 << ",\"donors\":[";
+              for (size_t j = 0; j < s.donors.size(); ++j)
+                  js << (j ? "," : "") << json_str(s.donors[j]);
+              js << "],\"fen\":" << json_str(s.fen) << "}";
+          }
+          js << "]}";
+      }
+      js << "]";
+  };
+
+  // ---- v4: one search of our board per forecast world, then the move with
+  // the best probability-weighted winning chances
+  if (WorldsOn)
+  {
+      const Forecast& fc = Fc;
+      for (auto& c : cands)
+          c.hasR = c.hasF = true;
+      if (fc.worlds.size() < 2)
+      {
+          report_candidates(0);
+          std::string why = resolve_tier(false, d);
+          return why.empty() ? extend_main("no_arrivals") : finish(d, why);
+      }
+
+      struct WorldRun {
+        Arrival arrival;
+        double p = 0;
+        std::string key, fen, best;
+        int depth = 0;
+        bool scored = false;
+        std::map<Move, int> value;     // cp for us, per candidate
+      };
+      std::vector<WorldRun> runs;
+      for (const World& w : fc.worlds)
+      {
+          WorldRun r;
+          r.arrival = w.arrival;
+          r.p = w.p;
+          r.key = w.arrival.key();
+          TeamState copy;
+          copy.assign_light(ctx.actual);
+          for (PieceType t : DeliveryTypes)
+          {
+              for (int i = 0; i < w.arrival.us[t]; ++i)
+                  copy.add_to_pocket(ctx.board, make_piece(ctx.us, t));
+              for (int i = 0; i < w.arrival.them[t]; ++i)
+                  copy.add_to_pocket(ctx.board, make_piece(~ctx.us, t));
+          }
+          r.fen = copy.fen(ctx.board);
+          runs.push_back(r);
+      }
+      const size_t extra = runs.size() - 1;
+      uint64_t leftNodes = 0;
+      TimePoint leftMs = 0;
+      ctx.budget.grant(Phase::COMPARE, leftNodes, leftMs);
+      auto cap_nodes = [&](double share) {
+          return leftNodes ? std::max<uint64_t>(1, uint64_t(double(leftNodes) * share / double(extra))) : uint64_t(0);
+      };
+      auto cap_ms = [&](double share) {
+          return leftMs ? std::max<TimePoint>(1, TimePoint(double(leftMs) * share / double(extra))) : TimePoint(0);
+      };
+      // Root moves are the moves legal now: a piece of ours that has not
+      // arrived yet cannot be dropped on this move.
+      std::vector<std::string> legalUci;
+      for (const auto& m : legal)
+          legalUci.push_back(UCI::move(root, m));
+
+      // Each arrival world's own best move joins the candidates.
+      for (size_t i = 1; i < runs.size(); ++i)
+      {
+          ProbeRequest req;
+          req.fen = runs[i].fen;
+          req.searchMoves = legalUci;
+          req.phase = Phase::PROBES;
+          req.clear = i == 1;
+          req.fed = true;
+          req.maxNodes = cap_nodes(Coef::WorldOwnShare);
+          req.maxTimeMs = cap_ms(Coef::WorldOwnShare);
+          req.tag = "world_" + runs[i].key;
+          ProbeResult r = ctx.worker.run(req, ctx.budget, &log);
+          if (!r.usable_exact() || !legal.contains(r.move))
+              continue;
+          runs[i].best = UCI::move(root, r.move);
+          size_t before = cands.size();
+          add_candidate(r.move, "world");
+          if (cands.size() > before)
+          {
+              Candidate& c = cands.back();
+              c.tier = exposure_tier(ctx, work, c.move, c.exposure);
+              c.hasR = c.hasF = true;
+          }
+      }
+
+      std::vector<Move> sm;
+      std::vector<std::string> smUci;
+      for (const auto& c : cands)
+          sm.push_back(c.move), smUci.push_back(c.uci);
+
+      // Every candidate scored in every arrival world.
+      for (size_t i = 1; i < runs.size(); ++i)
+      {
+          ProbeRequest req;
+          req.fen = runs[i].fen;
+          req.searchMoves = smUci;
+          req.multiPV = sm.size();
+          req.phase = Phase::PROBES;
+          req.clear = false;
+          req.fed = true;
+          req.maxNodes = cap_nodes(Coef::WorldScoreShare);
+          req.maxTimeMs = cap_ms(Coef::WorldScoreShare);
+          req.tag = "score_" + runs[i].key;
+          ProbeResult r = ctx.worker.run(req, ctx.budget, &log);
+          if (!r.usable_exact())
+              continue;
+          for (const auto& line : r.lines)
+              if (line.second != -VALUE_INFINITE)
+                  runs[i].value[line.first] = to_cp(line.second);   // our seat is to move; mates kept
+          runs[i].depth = r.depth;
+          runs[i].scored = runs[i].value.size() == sm.size();
+      }
+
+      // The no-arrival world on the main pool: warm table, real history,
+      // and everything the arrival worlds left over.
+      ProbeResult cmp = run_main_search(ctx.actual, ctx.board, ctx.budget, Phase::COMPARE, &log, sm, sm.size(), "compare");
+      log.set("common_depth", std::to_string(cmp.depth));
+      if (cmp.status == ProbeResult::OK && cmp.depth > 0)
+          for (const auto& line : cmp.lines)
+              if (line.second != -VALUE_INFINITE)
+                  runs[0].value[line.first] = to_cp(line.second);
+      runs[0].depth = cmp.depth;
+      runs[0].scored = runs[0].value.size() == sm.size();
+      for (auto& c : cands)
+          if (runs[0].value.count(c.move))
+              c.hasL = true, c.L = std::clamp(runs[0].value[c.move], -Coef::FiniteCap, Coef::FiniteCap);
+
+      // A world that could not be scored counts as "nothing arrives".
+      double pNone = runs[0].p;
+      int scoredWorlds = 0;
+      for (size_t i = 1; i < runs.size(); ++i)
+          if (runs[i].scored)
+              ++scoredWorlds;
+          else
+              pNone += runs[i].p;
+      const double scale = double(int(Options["HBWinScale"]));
+      // A mate on our board decides the game; any other score only shifts the odds.
+      auto win = [&](int cp) {
+          return cp >= 90000 ? 1.0 : cp <= -90000 ? 0.0 : 1.0 / (1.0 + std::exp(-double(cp) / scale));
+      };
+      if (runs[0].scored)
+          for (auto& c : cands)
+          {
+              // With nothing arriving, the main search has already ranked the
+              // moves, deeper than this comparison: nothing beats its choice there.
+              double e = pNone * win(std::min(runs[0].value[c.move], runs[0].value[cands[0].move]));
+              for (size_t i = 1; i < runs.size(); ++i)
+                  if (runs[i].scored)
+                      e += runs[i].p * win(runs[i].value[c.move]);
+              c.E = e;
+              double q = std::clamp(e, 1e-4, 1.0 - 1e-4);
+              c.S = std::clamp(int(std::lround(scale * std::log(q / (1.0 - q)))), -Coef::FiniteCap, Coef::FiniteCap);
+          }
+
+      log.set("worlds_scored", std::to_string(scoredWorlds));
+      js << ",\"worlds\":[";
+      for (size_t i = 0; i < runs.size(); ++i)
+      {
+          const WorldRun& r = runs[i];
+          js << (i ? "," : "") << "{\"arrival\":" << json_str(r.key) << ",\"p\":" << r.p
+             << ",\"best\":" << json_str(r.best) << ",\"depth\":" << r.depth
+             << ",\"scored\":" << (r.scored ? "true" : "false") << ",\"values\":{";
+          bool first = true;
+          for (const auto& c : cands)
+              if (r.value.count(c.move))
+              {
+                  js << (first ? "" : ",") << json_str(c.uci) << ":" << r.value.at(c.move);
+                  first = false;
+              }
+          js << "}}";
+      }
+      js << "]";
+      report_candidates(cmp.depth);
+
+      if (!runs[0].scored)
+      {
+          std::string why = resolve_tier(false, d);
+          return finish(d, why.empty() ? "compare_incomplete" : why);
+      }
+      {
+          std::string why = resolve_tier(true, d);
+          if (why.empty() && cands[0].tier == CERTAIN)
+              why = resolve_tier(false, d);
+          if (!why.empty())
+              return finish(d, why);
+      }
+      const Candidate* best = nullptr;
+      for (size_t i = 1; i < cands.size(); ++i)
+      {
+          const Candidate& c = cands[i];
+          if (!c.hasL || c.tier > cands[0].tier)
+              continue;
+          if (!best || c.S > best->S || (c.S == best->S && c.uci < best->uci))
+              best = &c;
+      }
+      if (scoredWorlds && best && best->S >= cands[0].S + Coef::WorldSwitchMargin)
+      {
+          d.move = best->move;
+          log.set("override", "1");
+          log.set("override_source", best->source);
+          return finish(d, "world_switch");
+      }
+      return finish(d, "kept_main");
+  }
+
   // ---- simulated hands: one scenario per partner-board capture after m
   int enemyScen = 0, friendlyScen = 0, dedup = 0;
   for (auto& c : cands)
@@ -812,55 +1091,6 @@ Decision coordinate(CoordinatorContext& ctx) {
   log.set("probes_required", std::to_string(required + partnerRequired));
   log.set("probes_completed", std::to_string(completed + partnerCompleted));
   log.set("probe_cache_hits", std::to_string(cache.requested - cache.run));
-
-  // ---- final use of the remaining budget
-  auto extend_main = [&](const std::string& why) {
-      ProbeResult ext = run_main_search(ctx.actual, ctx.board, ctx.budget, Phase::COMPARE, &log, {}, 1, "extension");
-      log.set("extension_depth", std::to_string(ext.depth));
-      std::string how;
-      if (ext.status == ProbeResult::OK && ext.finalMove != MOVE_NONE
-          && ext.depth >= ctx.main.depth && legal.contains(ext.finalMove)
-          && (ext.finalMove == M || exposure_tier(ctx, work, ext.finalMove, how) <= cands[0].tier))
-      {
-          d.move = ext.finalMove;
-          log.set("extension_used", "1");
-      }
-      return finish(d, why);
-  };
-
-  auto report_candidates = [&](int depth) {
-      js << ",\"common_depth\":" << depth << ",\"candidates\":[";
-      for (size_t i = 0; i < cands.size(); ++i)
-      {
-          const Candidate& c = cands[i];
-          js << (i ? "," : "") << "{\"move\":" << json_str(c.uci) << ",\"source\":" << json_str(c.source)
-             << ",\"delivery\":" << json_str(c.delivery != NO_PIECE_TYPE ? std::string(1, type_char(c.delivery)) : "")
-             << ",\"mating\":" << (c.mating ? "true" : "false") << ",\"blocking\":" << (c.blocking ? "true" : "false")
-             << ",\"enemy_donor\":" << (c.enemyDonor ? "true" : "false")
-             << ",\"friendly_scenarios\":" << c.friendlyScenarios << ",\"enemy_captures\":" << c.enemyCaptures
-             << ",\"L\":" << (c.hasL ? std::to_string(c.L) : "null")
-             << ",\"R\":" << (c.hasR ? std::to_string(c.R) : "null")
-             << ",\"F\":" << (c.hasF ? std::to_string(c.F) : "null")
-             << ",\"S\":" << (c.hasL && c.hasR && c.hasF ? std::to_string(c.S) : "null")
-             << ",\"tier\":" << c.tier
-             << ",\"probe_fatal\":" << (c.probeFatal ? "true" : "false")
-             << ",\"exposed\":" << json_str(c.tier ? c.exposure : "")
-             << ",\"scenarios\":[";
-          for (size_t k = 0; k < c.scen.size(); ++k)
-          {
-              const Scenario& s = c.scen[k];
-              js << (k ? "," : "") << "{\"arrival\":" << json_str(s.arrival == NO_PIECE ? "none"
-                                     : std::string(1, color_of(s.arrival) == WHITE ? type_char(type_of(s.arrival)) : char(tolower(type_char(type_of(s.arrival))))))
-                 << ",\"value\":" << (s.done ? std::to_string(s.value) : "null")
-                 << ",\"donors\":[";
-              for (size_t j = 0; j < s.donors.size(); ++j)
-                  js << (j ? "," : "") << json_str(s.donors[j]);
-              js << "],\"fen\":" << json_str(s.fen) << "}";
-          }
-          js << "]}";
-      }
-      js << "]";
-  };
 
   if (cands.size() < 2)
   {

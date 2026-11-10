@@ -17,6 +17,7 @@
 
 #include <string>
 
+#include "hb_forecast.h"
 #include "hb_probe.h"
 #include "hb_team_state.h"
 
@@ -55,6 +56,24 @@ namespace Coef {
   constexpr int    StallReserveMs    = 8000;
   constexpr int    StallLeadMs       = 500;
   constexpr int    StallPartnerMs    = 2500;    // extra lead while our partner must move first
+
+  // Arrival forecast and worlds (v4). Shares are fractions of the whole go.
+  constexpr int    ForecastLines         = 4;     // best partner-board lines read
+  constexpr int    ForecastExtraCaptures = 4;     // captures outside them, searched on request
+  constexpr int    ForecastPlies         = 2;     // plies of each line counted as arriving soon
+  constexpr int    ForecastScanPlies     = 4;     // plies read and reported
+  constexpr double ForecastShare         = 0.07;
+  constexpr double ForecastCaptureShare  = 0.03;
+  constexpr double ForecastPriceShare    = 0.03;
+  constexpr Depth  ForecastPriceDepth    = 5;
+  constexpr int    MaxWorlds             = 4;     // including "nothing arrives"
+  constexpr double MinWorldP             = 0.04;  // rarer packages are folded into "nothing arrives"
+  constexpr int    WorldMainCandidates   = 2;
+  constexpr int    WorldDeliveries       = 1;
+  constexpr double WorldOwnShare         = 0.30;  // of the budget left: each world's own best move
+  constexpr double WorldScoreShare       = 0.40;  // of the budget left: scoring candidates in arrival worlds
+  constexpr int    WorldSwitchMargin     = 25;    // cp-equivalent lead needed to replace the main choice
+  constexpr size_t WorldHashMb           = 16;
 }
 
 /// What the controller returns for one 'go'.
@@ -89,6 +108,10 @@ struct CoordinatorContext {
 /// team on the partner board, and install those prices for this go's
 /// main-pool searches. Short searches skip this and use the F term instead.
 void prepare_feed_prices(CoordinatorContext& ctx);
+
+/// Before the main search (v4): forecast what arrives from the partner board.
+/// Short searches skip this; coordinate() then uses the v3 rule.
+void prepare_forecast(CoordinatorContext& ctx);
 
 /// Choose our move after the main search. Returns a legal move of
 /// ctx.actual.pos(ctx.board), or pass=true to stall. Uses the rest of the

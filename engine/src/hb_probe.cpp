@@ -59,6 +59,7 @@ void fill_result(ProbeResult& r, const Position& root, Depth targetDepth) {
   r.finalScore = R.finalScore;
   r.finalMoveUci = R.finalMove != MOVE_NONE ? UCI::move(root, R.finalMove) : "(none)";
   r.lines = R.completedDepth > 0 ? R.lines : std::vector<std::pair<Move, Value>>();
+  r.linePvs = R.completedDepth > 0 ? R.linePVs : std::vector<std::vector<Move>>();
   r.rootOrder = R.rootOrder;
 
   if (R.completedDepth > 0 && !R.exactPV.empty() && R.exactScore != -VALUE_INFINITE)
@@ -353,17 +354,20 @@ void ChildWorker::shutdown() {
 }
 
 void ChildWorker::set_hash_mb(size_t mb) {
+  if (std::max<size_t>(1, mb) == ttMb)
+      return;
   ttMb = std::max<size_t>(1, mb);
   ttReady = false;
 }
 
 ProbeResult ChildWorker::run(const ProbeRequest& req, Budget& budget, DecisionLog* log) {
   ProbeResult r;
-  TimePoint t0 = now();
+  const TimePoint began = now();
+  TimePoint t0 = began;
   r.fen = req.fen;
   auto done = [&](ProbeResult::Status s) {
       r.status = s;
-      r.ms = now() - t0;
+      r.ms = now() - began;
       if (log) log->add(req.phase, req.tag, r);
       return r;
   };
@@ -394,6 +398,10 @@ ProbeResult ChildWorker::run(const ProbeRequest& req, Budget& budget, DecisionLo
           TT.resize(ttMb);    // also clears
           ttReady = true;
           Threads.clear();
+          // First use in this process: allocating the table is a one-off
+          // cost. It still counts against the go, but not against this
+          // search's own cap, which it could exceed on its own.
+          t0 = now();
       }
       else if (req.clear || count == 0)
       {
@@ -431,18 +439,21 @@ ProbeResult ChildWorker::run(const ProbeRequest& req, Budget& budget, DecisionLo
           return done(ProbeResult::NO_BUDGET); // never an unbounded child
 
       Search::HBResult = Search::HBSearchResult();
+      Search::HBHook.multiPV = req.multiPV;
       Threads.main()->callsCnt = 0;
+      FedActive = req.fed && FedPlanned;
       Threads.start_thinking(p, states, limits);
       if (Budget::cancelled())
           Threads.stop = true;
       Threads.main()->wait_for_search_finished();
+      FedActive = false;
 
       r.status = ProbeResult::OK;
       fill_result(r, p, req.depth);
       ++count;
   }
   budget.charge(r.nodes);
-  r.ms = now() - t0;
+  r.ms = now() - began;
   if (log) log->add(req.phase, req.tag, r);
   return r;
 }

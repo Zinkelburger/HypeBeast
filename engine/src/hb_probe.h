@@ -14,6 +14,7 @@
 #ifndef HB_PROBE_H_INCLUDED
 #define HB_PROBE_H_INCLUDED
 
+#include <algorithm>
 #include <atomic>
 #include <string>
 #include <vector>
@@ -56,7 +57,11 @@ public:
   // Grant for one search in phase p. nodes/movetimeMs are 0 when that
   // dimension is unlimited. False if the phase (or the total) is exhausted.
   bool grant(Phase p, uint64_t& nodes, TimePoint& movetimeMs) const;
+  // A fraction of the whole go budget, as caps for one child search.
+  uint64_t share_nodes(double f) const { return node_limited() ? std::max<uint64_t>(1, uint64_t(f * double(totalNodes))) : 0; }
+  TimePoint share_ms(double f) const { return time_limited() ? std::max<TimePoint>(1, TimePoint(f * double(totalMs))) : 0; }
   void charge(uint64_t nodes) { usedNodes += nodes; }
+  void set_slices(Slices s) { slices = s; }
 
   uint64_t nodes_used() const { return usedNodes; }
   uint64_t total_nodes() const { return totalNodes; }
@@ -89,6 +94,8 @@ struct ProbeRequest {
   TimePoint maxTimeMs = 0;                // per-probe cap (0 = phase grant only)
   Phase phase = Phase::PROBES;
   bool clear = true;                      // clear child TT and heuristics first
+  size_t multiPV = 0;                     // >1: every line gets an exact score and a PV
+  bool fed = false;                       // apply this go's feed prices (our board only)
   std::string tag;                        // label for the decision log
 };
 
@@ -118,6 +125,7 @@ struct ProbeResult {
   // Exact (move, score) of every MultiPV line of the last completed
   // iteration, and the first root moves in final order (main pool only).
   std::vector<std::pair<Move, Value>> lines;
+  std::vector<std::vector<Move>> linePvs;   // PV of every line, same order
   std::vector<Move> rootOrder;
 
   // UCI spellings (filled from the search's own root position)

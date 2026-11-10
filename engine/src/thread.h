@@ -81,6 +81,7 @@ public:
   Value hbExactScore;
   std::vector<Move> hbExactPV;
   std::vector<std::pair<Move, Value>> hbLines;
+  std::vector<std::vector<Move>> hbLinePVs;   // PV of every hbLines entry
   Value hbAlpha, hbBeta;
 };
 

@@ -219,6 +219,12 @@ void init(OptionsMap& o) {
   o["Coordination"]          << Option(true);
   o["HBFeedPrices"]          << Option(true);   // price captures across boards in the main search
   o["HBStall"]               << Option(true);   // sit to deny a verified fed mate when the clocks allow
+  o["HBWorlds"]              << Option(true);   // forecast arrivals and choose over weighted worlds (v4)
+  o["HBForecastTemp"]        << Option(250, 10, 2000);   // cp: how sharply better partner-board lines are favoured
+  o["HBForecastTrust"]       << Option(85, 0, 100);      // %: share of a forecast arrival that is believed
+  o["HBForecastTrustLate"]   << Option(0, 0, 100);       // %: the same for captures 3-4 plies into a line (0: v4 as measured)
+  o["HBForecastPrice"]       << Option(50, 0, 200);      // %: how much of a capture's value on our board counts there
+  o["HBWinScale"]            << Option(1000, 50, 4000);   // cp per logistic unit of winning chances
   o["Seat"]                  << Option("Awhite", {"Awhite", "Ablack", "Bwhite", "Bblack"});
   o["Clocks"]                << Option("");
   // Arena/HiveMind names and semantics: Team white = White on A + Black on B

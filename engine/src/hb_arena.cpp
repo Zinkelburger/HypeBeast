@@ -202,7 +202,10 @@ void controller(Search::LimitsType limits) {
                              ChildWorker::get(), log};
       // Prices are measured first so the main search can use them.
       if (coordination)
+      {
           prepare_feed_prices(ctx);
+          prepare_forecast(ctx);
+      }
       mainResult = run_main_search(ts, sc.board, budget, Phase::MAIN, &log);
       searched = true;
       if (coordination)
@@ -576,6 +579,42 @@ void hbprobe(std::istringstream& is) {
                 << " fallback=" << (fallback != MOVE_NONE ? UCI::move(ts.pos(sc.board), fallback) : "(none)")
                 << " child_searches_total=" << ChildWorker::get().searches()
                 << sync_endl;
+  });
+}
+
+// Prints the arrival forecast for the current position and seat:
+// 'hbforecast {...}' then 'hbforecast done'. No move is chosen.
+void hbforecast(std::istringstream& is) {
+  Search::LimitsType limits;
+  limits.startTime = now();
+  std::string token;
+  while (is >> token)
+      if      (token == "nodes")    is >> limits.nodes;
+      else if (token == "movetime") is >> limits.movetime;
+
+  actual();
+  spawn([limits]() {
+      TeamState& ts = actual();
+      SeatContext sc = seat_context();
+      Verdict verdict = ts.verdict(sc.advantage[WHITE], sc.advantage[BLACK]);
+      const Position& pos = ts.pos(sc.board);
+      Budget budget(limits, true);
+      DecisionLog log;
+      ProbeResult none;
+      Move fallback = deterministic_fallback(pos);
+      CoordinatorContext ctx{ts, sc.seat, sc.team, sc.board, sc.us,
+                             {sc.advantage[WHITE], sc.advantage[BLACK]},
+                             {sc.advantageKnown[WHITE], sc.advantageKnown[BLACK]},
+                             sc.clocksKnown,
+                             {sc.clocks[0], sc.clocks[1], sc.clocks[2], sc.clocks[3]},
+                             verdict, none, fallback, budget, ChildWorker::get(), log};
+      if (pos.side_to_move() == sc.us && MoveList<LEGAL>(pos).size() && !budget.passthrough())
+      {
+          Forecast f = make_forecast(ctx);
+          sync_cout << "hbforecast " << f.json() << sync_endl;
+      }
+      sync_cout << "hbforecast done nodes=" << budget.nodes_used()
+                << " elapsed_ms=" << now() - limits.startTime << sync_endl;
   });
 }
 

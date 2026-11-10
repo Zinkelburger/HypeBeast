@@ -323,6 +323,7 @@ void MainThread::search() {
       Search::HBResult.selDepth = rm.selDepth;
       Search::HBResult.nodes = Threads.nodes_searched();
       Search::HBResult.lines = bestThread->hbLines;
+      Search::HBResult.linePVs = bestThread->hbLinePVs;
       Search::HBResult.rootOrder.clear();
       for (size_t i = 0; i < bestThread->rootMoves.size() && i < 3; ++i)
           Search::HBResult.rootOrder.push_back(bestThread->rootMoves[i].pv[0]);
@@ -534,8 +535,12 @@ void Thread::search() {
           hbExactScore = rootMoves[0].score;
           hbExactPV = rootMoves[0].pv;
           hbLines.clear();
+          hbLinePVs.clear();
           for (size_t i = 0; i < multiPV; ++i)
+          {
               hbLines.emplace_back(rootMoves[i].pv[0], rootMoves[i].score);
+              hbLinePVs.push_back(rootMoves[i].pv);
+          }
       }
 
       if (rootMoves[0].pv[0] != lastBestMove) {
