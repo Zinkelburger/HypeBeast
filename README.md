@@ -97,12 +97,16 @@ give the same score, move and node count at a fixed depth.
 net, `wait MS` pauses). [chessautoprep.com/bughouse](https://chessautoprep.com/bughouse)
 runs it.
 
-Two reports are for pages like that one:
+Three reports are for pages like that one:
 
 - Every go that prices the partner board prints `info string hb_values
   {...}`: for each colour, how much better that side stands with one more
   pawn, knight, bishop, rook or queen in hand on the partner board, in
   centipawns from its own side, or `"mate"`.
+- While a search uses those prices, each line of more than one move is
+  followed by `info string hb_fed multipv N cp X`: how much of that line's
+  score is what its captures are worth on the partner board, from the side
+  to move. The score minus `X` is the board's own score along the line.
 - `hbvalues board A|B movetime N` measures that table for one board,
   deepening by two plies while the time lasts, and ends with `bestmove
   (none)`.

@@ -2029,6 +2029,36 @@ void MainThread::check_time() {
 }
 
 
+namespace {
+
+/// The feed prices a line collects, in internal units from the root side's
+/// point of view: Position::do_move's hbFed sum, replayed on a copy.
+int hb_fed_along(const Position& pos, const std::vector<Move>& pv) {
+
+  StateListPtr states(new std::deque<StateInfo>(1));
+  Position p;
+  p.set(pos.variant(), pos.fen(false, true), pos.is_chess960(), &states->back(), pos.this_thread());
+  // The replay's moves are not searched nodes: node-limited searches must stop where they would.
+  Thread* th = pos.this_thread();
+  uint64_t nodes = th->nodes.load(std::memory_order_relaxed);
+  int fed = 0;
+  for (Move m : pv)
+  {
+      if (!p.pseudo_legal(m) || !p.legal(m))
+          break;
+      states->emplace_back();
+      p.do_move(m, states->back());
+      fed = p.hb_fed();
+      // hb_fed() is from the side to move's point of view; the root side's is wanted.
+      if (p.side_to_move() != pos.side_to_move())
+          fed = -fed;
+  }
+  th->nodes.store(nodes, std::memory_order_relaxed);
+  return fed;
+}
+
+} // namespace
+
 /// UCI::pv() formats PV information according to the UCI protocol. UCI requires
 /// that all (if any) unsearched PV lines are sent using a previous search score.
 
@@ -2102,6 +2132,14 @@ string UCI::pv(const Position& pos, Depth depth, Value alpha, Value beta) {
 
       for (Move m : rootMoves[i].pv)
           ss << " " << UCI::move(pos, m);
+
+      // HypeBeast: how much of this score is feed prices (what the line's
+      // captures are worth on the partner board), so a reader can tell the
+      // board's own score from the team's. A one-move line (a search stopped
+      // mid-iteration) does not show its captures, so it gets none.
+      if (HB::FedActive && abs(v) < VALUE_MATE_IN_MAX_PLY && rootMoves[i].pv.size() > 1)
+          ss << "\ninfo string hb_fed multipv " << i + 1
+             << " cp " << hb_fed_along(pos, rootMoves[i].pv) * 100 / PawnValueEg;
       }
   }
 
