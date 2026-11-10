@@ -206,7 +206,10 @@ void controller(Search::LimitsType limits) {
           prepare_feed_prices(ctx);
           prepare_forecast(ctx);
       }
-      mainResult = run_main_search(ts, sc.board, budget, Phase::MAIN, &log);
+      // Without coordination the main search is the whole answer, so it shows
+      // as many lines as MultiPV asks for (1 unless set, as in the arena).
+      mainResult = run_main_search(ts, sc.board, budget, Phase::MAIN, &log, {},
+                                   coordination ? 1 : std::max<size_t>(1, size_t(Options["MultiPV"])));
       searched = true;
       if (coordination)
       {
