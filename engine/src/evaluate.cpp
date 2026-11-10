@@ -77,6 +77,11 @@ namespace Eval {
   void NNUE::init() {
 
     useNNUE = Options["Use NNUE"];
+#ifdef __EMSCRIPTEN__
+    // No files in the browser: the net arrives through setNnueBuffer.
+    currentNnueVariant = variants.find(string(Options["UCI_Variant"]))->second;
+    return;
+#endif
     if (!useNNUE)
         return;
 
@@ -140,6 +145,9 @@ namespace Eval {
   /// NNUE::verify() verifies that the last net used was loaded successfully
   void NNUE::verify() {
 
+#ifdef __EMSCRIPTEN__
+    return;
+#endif
     string eval_file = string(Options["EvalFile"]);
 
     if (useNNUE && eval_file.find(eval_file_loaded) == string::npos)

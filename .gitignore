@@ -9,3 +9,5 @@ engine/src/*.gcno
 __pycache__/
 *.pyc
 logs/
+/build/
+/web/dist/
