@@ -56,6 +56,10 @@ either side. The clock is unchanged and virtual: a move costs 1.5-2.5 s of
 clock whatever the search took. Runs are a few pairs of screen20 at a time.
 Results at 400 nodes, including the 8-2 above, are not comparable with these.
 
+First run, 2026-11-10: v4 won game 1 (pair 1, as white) by checkmate at 90 s of
+game clock; the game took 46 minutes to run. Stopped there at the user's
+request, so this is one game and not a measurement.
+
 Found on the way, not yet used (`HBForecastTrustLate`, default 0): in 16 of 20
 drop mates against v1 the mating piece arrived during our last turn. One move
 earlier the 2-ply forecast gave that piece 5% or more in 4 of 20 games, a 4-ply

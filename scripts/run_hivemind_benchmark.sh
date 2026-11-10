@@ -35,9 +35,6 @@ TIMEOUT=${SEARCH_TIMEOUT:-300}
 NAME=hb-${BIN#hypebeast-}
 OUT=$HB/logs/${NAME#hb-}-vs-hivemind-n$NODES
 LOG=$OUT.log
-ATTEMPT=$(mktemp)
-trap 'rm -f "$ATTEMPT"' EXIT
-
 args=(--fixed-sample --openings bughouse_arena/opening_sets/screen20.txt
       --pairs "$PAIRS" --engine-logs --search-timeout "$TIMEOUT"
       --contender "hypebeast,bin=$HB/bin/$BIN,$BUDGET,name=$NAME"
@@ -48,14 +45,17 @@ args=(--fixed-sample --openings bughouse_arena/opening_sets/screen20.txt
 cd "$ARENA/tools" || exit 2
 date >>"$LOG"
 while :; do
-  ../scripts/ci.sh with -- python3 -m bughouse_arena "${args[@]}" >"$ATTEMPT" 2>&1
+  size=$(stat -c %s "$LOG")
+  ../scripts/ci.sh with -- python3 -m bughouse_arena "${args[@]}" >>"$LOG" 2>&1
   status=$?
-  # Both job slots taken: the job gives up after two minutes. Keep asking.
-  if grep -q 'Queue timeout' "$ATTEMPT" && ! grep -q '^agent-job: slot' "$ATTEMPT"; then
+  # Both job slots taken: the job gives up after two minutes. Drop that
+  # attempt's lines and keep asking.
+  if tail -c +$((size + 1)) "$LOG" | grep -q 'Queue timeout' &&
+     ! tail -c +$((size + 1)) "$LOG" | grep -q '^agent-job: slot'; then
+    truncate -s "$size" "$LOG"
     sleep 60
     continue
   fi
-  cat "$ATTEMPT" >>"$LOG"
   break
 done
 echo "exit=$status" >>"$LOG"
