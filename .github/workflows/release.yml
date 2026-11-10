@@ -1,0 +1,86 @@
+name: Release
+
+# A tag such as v1.0.0 builds the engine for Linux, Windows and macOS and
+# publishes the binaries on the releases page. Run it by hand (Actions, Run
+# workflow) to build without publishing.
+on:
+  push:
+    tags: ["v*"]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - {os: ubuntu-22.04, name: linux, arch: x86-64-bmi2, comp: gcc, suffix: "", ldflags: "-static"}
+          - {os: ubuntu-22.04, name: linux, arch: x86-64-modern, comp: gcc, suffix: "", ldflags: "-static"}
+          - {os: windows-2022, name: windows, arch: x86-64-bmi2, comp: mingw, suffix: ".exe", ldflags: ""}
+          - {os: windows-2022, name: windows, arch: x86-64-modern, comp: mingw, suffix: ".exe", ldflags: ""}
+          - {os: macos-15, name: macos, arch: apple-silicon, comp: clang, suffix: "", ldflags: ""}
+          - {os: macos-15-intel, name: macos, arch: x86-64-modern, comp: clang, suffix: "", ldflags: ""}
+    runs-on: ${{ matrix.os }}
+    defaults:
+      run:
+        shell: bash
+    env:
+      EXE: hypebeast-${{ matrix.name }}-${{ matrix.arch }}${{ matrix.suffix }}
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Build
+        working-directory: engine/src
+        run: |
+          make -j4 build ARCH=${{ matrix.arch }} COMP=${{ matrix.comp }} EXE="$EXE" EXTRALDFLAGS="${{ matrix.ldflags }}"
+          strip "$EXE"
+
+      - name: Check that it starts and is HypeBeast
+        working-directory: engine/src
+        run: |
+          printf 'uci\nquit\n' | "./$EXE" > uci.txt
+          grep -q '^option name HypeBeast ' uci.txt
+          grep -q '^option name HBWorlds ' uci.txt
+          grep -q '^uciok' uci.txt
+
+      - uses: actions/upload-artifact@v7
+        with:
+          name: ${{ env.EXE }}
+          path: engine/src/${{ env.EXE }}
+          if-no-files-found: error
+
+  release:
+    if: startsWith(github.ref, 'refs/tags/v')
+    needs: build
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/download-artifact@v8
+        with:
+          path: dist
+          merge-multiple: true
+
+      - name: Publish
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ github.ref_name }}
+        run: |
+          cp LICENSE dist/LICENSE.txt
+          cp engine/Copying.txt dist/COPYING-engine.txt
+          (cd dist && sha256sum hypebeast-* > SHA256SUMS.txt)
+          cat > notes.md <<'NOTES'
+          HypeBeast is a CPU bughouse engine: Fairy-Stockfish with a two-board coordinator.
+
+          Pick the binary for your system. Use `bmi2` on a CPU from 2013 or later and `modern` otherwise; on a Mac, `apple-silicon` for M-series and `x86-64-modern` for Intel.
+
+          The engine needs the Fairy-Stockfish bughouse network (`bughouse-cd8cceab93fe.nnue`), which is not included: download the bughouse row from https://fairy-stockfish.github.io/nnue/ and set it as `EvalFile`. The README explains the options and the two-board protocol.
+
+          On Linux and macOS, make the file executable first: `chmod +x hypebeast-*`.
+          NOTES
+          gh release create "$TAG" dist/* --title "HypeBeast $TAG" --notes-file notes.md --verify-tag
