@@ -17,6 +17,9 @@
 //   hbmakeundo [iterations N] [plies P] [seed S]   (self-test)
 //   hbprobe [nodes N|movetime M] [count K] [depth D] [clear 0|1] [fen F]  (self-test)
 //   hbforecast [nodes N|movetime M]   -> the arrival forecast for the seat on turn
+//   hbvalues board A|B [nodes N|movetime M]
+//        -> 'info string hb_values {...}' per completed depth (3, 5, 7, ...),
+//           then 'bestmove (none)': one more piece in hand, for each colour
 
 #ifndef HB_ARENA_H_INCLUDED
 #define HB_ARENA_H_INCLUDED
@@ -37,6 +40,7 @@ void hbstate(std::istringstream& is);
 void hbmakeundo(std::istringstream& is);
 void hbprobe(std::istringstream& is);
 void hbforecast(std::istringstream& is);
+void hbvalues(std::istringstream& is);
 void shutdown();  // join controller and free the child worker
 
 } // namespace Stockfish::HB::Arena

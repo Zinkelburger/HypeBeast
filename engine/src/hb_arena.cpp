@@ -618,6 +618,54 @@ void hbforecast(std::istringstream& is) {
   });
 }
 
+// What one more piece in hand is worth on one board, for display. Deepens
+// while the budget lasts and prints every depth whose 11 probes all finished.
+void hbvalues(std::istringstream& is) {
+  Search::LimitsType limits;
+  limits.startTime = now();
+  int board = BOARD_A;
+  std::string token;
+  while (is >> token)
+      if      (token == "nodes")    is >> limits.nodes;
+      else if (token == "movetime") is >> limits.movetime;
+      else if (token == "board")    { is >> token; board = token == "B" || token == "b" ? BOARD_B : BOARD_A; }
+
+  actual();
+  spawn([limits, board]() {
+      TeamState& ts = actual();
+      SeatContext sc = seat_context();
+      Verdict verdict = ts.verdict(sc.advantage[WHITE], sc.advantage[BLACK]);
+      Budget budget(limits, false);
+      DecisionLog log;
+      ProbeResult none;
+      Move fallback = deterministic_fallback(ts.pos(board));
+      CoordinatorContext ctx{ts, sc.seat, sc.team, sc.board, sc.us,
+                             {sc.advantage[WHITE], sc.advantage[BLACK]},
+                             {sc.advantageKnown[WHITE], sc.advantageKnown[BLACK]},
+                             sc.clocksKnown,
+                             {sc.clocks[0], sc.clocks[1], sc.clocks[2], sc.clocks[3]},
+                             verdict, none, fallback, budget, ChildWorker::get(), log};
+      int printed = 0;
+      if (!budget.passthrough())
+          for (Depth d = 3; d <= 30 && !budget.exhausted(); d += 2)
+          {
+              PieceValues v = measure_piece_values(ctx, board, d, 0, Phase::DISCOVERY);
+              bool complete = v.baseOk;
+              for (Color c : { WHITE, BLACK })
+                  for (PieceType t : { PAWN, KNIGHT, BISHOP, ROOK, QUEEN })
+                      complete = complete && v.ok[c][t];
+              if (!complete)
+                  break;
+              sync_cout << "info string hb_values " << v.json("board") << sync_endl;
+              ++printed;
+          }
+      sync_cout << "info string hb_values_done depths=" << printed
+                << " nodes=" << budget.nodes_used()
+                << " elapsed_ms=" << now() - limits.startTime << sync_endl;
+      sync_cout << "bestmove (none)" << sync_endl;
+  });
+}
+
 void shutdown() {
   stop();
   wait();

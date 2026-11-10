@@ -104,6 +104,29 @@ struct CoordinatorContext {
   DecisionLog& log;
 };
 
+/// What one more piece in hand is worth on one board, to each colour, for
+/// display: the receiver's gain in centipawns from the receiver's side,
+/// unhalved and uncapped, or a mate the piece makes possible. Read from
+/// paired child searches (the position with and without the piece) at a
+/// common depth.
+struct PieceValues {
+  int board = 0;
+  Color stm = WHITE;            // side to move on that board
+  Depth depth = 0;
+  bool baseOk = false;
+  int base = 0;                 // the board without extra pieces, White's view
+  bool ok[COLOR_NB][PIECE_TYPE_NB] = {};
+  bool mate[COLOR_NB][PIECE_TYPE_NB] = {};
+  int gain[COLOR_NB][PIECE_TYPE_NB] = {};
+  void set(Color receiver, PieceType t, int with, int without);  // both from the receiver's side
+  std::string json(const char* source) const;
+};
+
+/// Measures PieceValues for `board` with 11 probes of `depth` plies (each
+/// capped at maxNodes), charged to ctx.budget in the given phase.
+PieceValues measure_piece_values(CoordinatorContext& ctx, int board, Depth depth,
+                                 uint64_t maxNodes, Phase phase);
+
 /// Before the main search: measure what each piece type is worth to each
 /// team on the partner board, and install those prices for this go's
 /// main-pool searches. Short searches skip this and use the F term instead.

@@ -399,6 +399,7 @@ void UCI::loop(int argc, char* argv[]) {
       else if (token == "hbmakeundo") HB::Arena::hbmakeundo(is);
       else if (token == "hbprobe")    HB::Arena::hbprobe(is);
       else if (token == "hbforecast") HB::Arena::hbforecast(is);
+      else if (token == "hbvalues")   HB::Arena::hbvalues(is);
       else if (token == "isready")    sync_cout << "readyok" << sync_endl;
 
       // Additional custom non-UCI commands, mainly for debugging.

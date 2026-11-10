@@ -131,6 +131,13 @@ struct ProbeCache {
 
 std::string json_str(const std::string& s) { return "\"" + s + "\""; }
 
+TeamState with_piece(const TeamState& actual, int board, Piece pc) {
+  TeamState t;
+  t.assign_light(actual);
+  t.add_to_pocket(board, pc);
+  return t;
+}
+
 ProbeCache Cache;        // this go's probes; prices and F share the partner ones
 bool PricesOn = false;   // this go's main-pool searches use feed prices
 Forecast Fc;             // this go's arrival forecast (v4)
@@ -325,6 +332,70 @@ bool delivery_wins(const CoordinatorContext& ctx, TeamState& work, Move m) {
 } // namespace
 
 
+void PieceValues::set(Color receiver, PieceType t, int with, int without) {
+  ok[receiver][t] = true;
+  mate[receiver][t] = with >= Coef::FiniteCap && without < Coef::FiniteCap;
+  gain[receiver][t] = with - without;
+}
+
+std::string PieceValues::json(const char* source) const {
+  std::ostringstream ss;
+  ss << "{\"board\":\"" << (board == BOARD_A ? 'A' : 'B') << "\",\"source\":\"" << source
+     << "\",\"stm\":\"" << (stm == WHITE ? 'w' : 'b') << "\",\"depth\":" << int(depth)
+     << ",\"base\":";
+  if (baseOk) ss << base; else ss << "null";
+  for (Color c : { WHITE, BLACK })
+  {
+      ss << (c == WHITE ? ",\"white\":{" : ",\"black\":{");
+      bool first = true;
+      for (PieceType t : DeliveryTypes)
+      {
+          ss << (first ? "" : ",") << "\"" << type_char(t) << "\":";
+          first = false;
+          if (!ok[c][t])        ss << "null";
+          else if (mate[c][t])  ss << "\"mate\"";
+          else                  ss << gain[c][t];
+      }
+      ss << "}";
+  }
+  ss << "}";
+  return ss.str();
+}
+
+PieceValues measure_piece_values(CoordinatorContext& ctx, int board, Depth depth,
+                                 uint64_t maxNodes, Phase phase) {
+  PieceValues pv;
+  pv.board = board;
+  pv.depth = depth;
+  pv.stm = ctx.actual.pos(board).side_to_move();
+  auto probe = [&](const std::string& fen, const std::string& tag, bool clear) {
+      ProbeRequest req;
+      req.fen = fen;
+      req.depth = depth;
+      req.maxNodes = maxNodes;
+      req.phase = phase;
+      req.clear = clear;
+      req.tag = tag;
+      return ctx.worker.run(req, ctx.budget, &ctx.log);
+  };
+  int q0 = 0;
+  if (!team_value(probe(ctx.actual.fen(board), "values_base", true), pv.stm, WHITE, q0))
+      return pv;
+  pv.baseOk = true;
+  pv.base = q0;
+  for (PieceType t : DeliveryTypes)
+      for (Color c : { WHITE, BLACK })
+      {
+          int v;
+          if (ctx.budget.exhausted())
+              return pv;
+          std::string tag = std::string("values_") + (c == WHITE ? "w" : "b") + type_char(t);
+          if (team_value(probe(with_piece(ctx.actual, board, make_piece(c, t)).fen(board), tag, false), pv.stm, c, v))
+              pv.set(c, t, v, c == WHITE ? q0 : -q0);
+      }
+  return pv;
+}
+
 void prepare_feed_prices(CoordinatorContext& ctx) {
   Cache = ProbeCache();
   PricesOn = false;
@@ -343,8 +414,17 @@ void prepare_feed_prices(CoordinatorContext& ctx) {
   std::map<PieceType, int> theirs = ours;
 
   int q0 = 0;
+  PieceValues shown;      // the same probes, unhalved, for the page
+  shown.board = pb;
+  shown.stm = pbStm;
+  shown.depth = Coef::ProbeDepth;
   const ProbeResult& r0 = Cache.get(ctx, ctx.actual.fen(pb), Phase::DISCOVERY, "partner_base");
   if (team_value(r0, pbStm, partner, q0))
+  {
+      shown.baseOk = true;
+      shown.base = partner == WHITE ? q0 : -q0;
+  }
+  if (shown.baseOk)
       for (PieceType t : DeliveryTypes)
       {
           TeamState mine, enemy;
@@ -354,9 +434,11 @@ void prepare_feed_prices(CoordinatorContext& ctx) {
           enemy.add_to_pocket(pb, make_piece(ctx.us, t));
           int v;
           if (team_value(Cache.get(ctx, mine.fen(pb), Phase::DISCOVERY, std::string("partner_") + type_char(t)), pbStm, partner, v))
+              shown.set(partner, t, v, q0),
               ours[t] = v >= Coef::FiniteCap && q0 < Coef::FiniteCap ? Coef::MatePriceOurs
                                                                      : std::clamp((v - q0) / Coef::PriceDiv, 0, Coef::PriceCap);
           if (team_value(Cache.get(ctx, enemy.fen(pb), Phase::DISCOVERY, std::string("enemy_") + type_char(t)), pbStm, partner, v))
+              shown.set(ctx.us, t, -v, -q0),
               theirs[t] = v <= -Coef::FiniteCap && q0 > -Coef::FiniteCap ? Coef::MatePriceTheirs
                                                                          : std::clamp((q0 - v) / Coef::PriceDiv, 0, Coef::PriceCap);
       }
@@ -384,6 +466,7 @@ void prepare_feed_prices(CoordinatorContext& ctx) {
   set_feed_prices_planned(true);
   ctx.log.set("prices", "1");
   sync_cout << "info string hb_prices " << ps.str() << sync_endl;
+  sync_cout << "info string hb_values " << shown.json("partner") << sync_endl;
 }
 
 
