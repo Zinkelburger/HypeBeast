@@ -2,6 +2,69 @@
 
 Revision 7 — 2026-11-06. Replaces revision 6 and its phase ordering.
 
+## Revision 10 (engine v5, 2026-11-10): sit when sitting is the better move
+
+Where this section and the text below disagree, this section wins.
+
+Why: in v4's 100 games against v3, 84 ended with the mated seat's own search
+having seen the forced mate, and it moved into it every time; its team won 21%
+of those games. v4 never sat while its partner was mating on the other board.
+And while a partner could not move, the other seat still priced threats that
+needed a drop on that partner's board.
+
+- **Mated by force: sit.** A seat whose main search sees a forced mate against
+  it sits until its clock only covers the moves the mate takes (2.5 s for each
+  after the first, at least 0.4 s, at most 15 s), then plays them. While it
+  sits it cannot be mated, and its partner has that long to win or to send a
+  piece that ends the mate; a new piece in hand is a new search.
+- **Partner mates by force: wait.** A seat whose forecast sees its partner
+  mating, and which is neither mating nor in check, sits: the opponents get no
+  new piece to block with. This needs 20 s on the clock and a 2 s lead over the
+  seat being mated, which may sit as well. With its partner on turn the wait
+  is 3.5 s, once per turn. A capture that lets the partner mate at once is
+  played instead.
+- **Every move feeds a mating drop: sit** without the clock lead that stalling
+  otherwise needs, because no move keeps what sitting would lose.
+- **A sitting partner.** A seat whose partner is on turn and mated by force
+  expects no arrivals from that board and prices the pieces it might lose at
+  nothing: nothing can be dropped on a board whose seat is sitting. The same
+  holds for a partner that is lost by 1000 cp and has been on turn for longer
+  than a move takes.
+- **Rescue.** For that partner, the feed prices come from depth-5 searches that
+  do not see its mate. They are replaced by a search of its board with the
+  piece in hand, 6 plies past the mate's length, 3% of the go for each type,
+  once per position: a piece that leaves it mated is worth nothing, one that
+  ends the mate is priced as feed prices are, from a lost board.
+- `HBHold=false` gives v4. `HBRescue=false` keeps the depth-5 prices.
+
+The arena books one wake per board turn, the first one a sitting seat asks for.
+A seat mated by force therefore keeps track of whether its wake is the one
+booked; when it is not, it leaves 3 s of margin and relies on being asked
+again after each move on the other board.
+
+Measured, all at 500,000 nodes a move and `Hash=64`, 50 pairs of
+`openings/dev100.txt`, against `bin/hypebeast-v4` (`scripts/run_match.sh`).
+With a node budget two builds play the same game until they first choose
+differently, so builds are also compared game by game.
+
+| build | what it adds | result against v4 |
+|---|---|---|
+| v5b | holds, but waiting for the partner's mate needs no clock lead | 22-21 after 43 games, 7 losses on time; stopped |
+| v5c | the clock lead for that wait | **59-41**, Elo +63 (95% +23 to +104), pairs 9/41/0 (won both, split, lost both) |
+| v5e | v5c, a partner that is lost and not moving counts as sitting, rescue prices | 32-21 after 53 games; stopped |
+
+v5e and v5c agree on 29 of the 52 games both played and score 31 and 32 on
+them, with one game changing hands. The two additions in v5e are not shown to
+help or to hurt. `bin/hypebeast-v5e` is the v5 that v6 was measured against.
+
+What sitting does not fix. Of v5c's 41 losses, both seats were mated in 17. In
+8 the other seat was ahead by 1000 cp or more, or had a forced mate, when its
+sitting partner's clock ran out. A search eight times larger (4,000,000 nodes)
+on those boards chose mostly the same moves and found no mate sooner in 5 of
+the 6 games tried, so these are not missed mates: the attack is too slow for
+the time the partner can sit. 6 losses were on time; in each, both seats were
+mated by force when the flag fell.
+
 ## Revision 9 (engine v4, 2026-11-09): forecast the arrivals, choose over worlds
 
 Where this section and the text below disagree, this section wins.
