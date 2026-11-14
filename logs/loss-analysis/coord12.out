@@ -1,0 +1,15 @@
+game 3 ply 40 Awhite: off same | quiet guard: probed QP prices line yes move B@e4 main nodes 257376 | no prices: B@h4 272293
+game 3 ply 40 Bwhite: off same | quiet guard: probed low prices line no move d1h5 main nodes 272085 | no prices: d1h5 277150
+game 11 ply 61 Ablack: off same | quiet guard: probed QNP prices line no move B@b7 main nodes 250805 | no prices: B@b7 270913
+game 11 ply 61 Bwhite: off same | quiet guard: probed QBP prices line no move h4e7 main nodes 257146 | no prices: h4e7 277158
+game 35 ply 72 Ablack: off same | quiet guard: probed low prices line no move g7f6 main nodes 274731 | no prices: g7f6 279332
+game 35 ply 72 Bblack: off same | quiet guard: probed QP prices line no move g1a1 main nodes 277758 | no prices: N@c4 292520
+game 16 ply 83 Awhite: off same | quiet guard: probed BP prices line no move f2e2 main nodes 262594 | no prices: f2e2 277492
+game 16 ply 83 Bblack: off same | quiet guard: probed RBP prices line no move f8g7 main nodes 254317 | no prices: f8g7 274446
+game 7 ply 96 Awhite: off same | quiet guard: probed QP prices line no move N@h5 main nodes 274227 | no prices: N@h5 289509
+game 7 ply 96 Bwhite: off same | quiet guard: probed QP prices line no move e2d2 main nodes 264187 | no prices: e2d2 281120
+all off: 10 of 10 decisions as bin/hypebeast-v8h
+Ablack, message heard with limits off: heard=fresh ours {'R': 600} theirs {'Q': 800, 'N': 300} move d7d6
+with the limits: heard=fresh ours {} theirs {'Q': 800} move d7d6
+teller at -900, floor -300: heard=low prices line no move B@b7
+PASS

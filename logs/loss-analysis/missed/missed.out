@@ -1,0 +1,155 @@
+# late50-vs-np-b: 100 games, 11446 decisions
+
+decisions
+| engine | all | partner could take a T at once | of those, took one (now or within 2 moves) | could, did not | could not | a T reached the seat's hand before its next move |
+|---|---|---|---|---|---|---|
+| hb-late50 | 32 (81.2%) | 21 (85.7%) | 14 (92.9%) | 7 (71.4%) | 11 (72.7%) | 11 (100.0%) |
+| hb-np | 23 (91.3%) | 21 (90.5%) | 15 (100.0%) | 6 (66.7%) | 2 (100.0%) | 13 (100.0%) |
+
+decisions by piece (both engines)
+| T | all | partner could take a T at once | of those, took one (now or within 2 moves) | could, did not | could not | a T reached the seat's hand before its next move |
+|---|---|---|---|---|---|---|
+| P | 8 (100.0%) | 7 (100.0%) | 4 (100.0%) | 3 (100.0%) | 1 (100.0%) | 3 (100.0%) |
+| N | 14 (75.0%) | 11 (81.8%) | 8 (100.0%) | 3 (33.3%) | 3 (50.0%) | 8 (100.0%) |
+| B | 3 (100.0%) | 2 (100.0%) | 0 (-) | 2 (100.0%) | 1 (100.0%) | 0 (-) |
+| R | 9 (88.9%) | 7 (85.7%) | 4 (100.0%) | 3 (66.7%) | 2 (100.0%) | 3 (100.0%) |
+| Q | 22 (84.1%) | 16 (87.5%) | 14 (92.9%) | 2 (50.0%) | 6 (75.0%) | 11 (100.0%) |
+
+episodes
+| engine | all | partner could take a T at once | of those, took one (now or within 2 moves) | could, did not | could not | a T reached the seat's hand before its next move |
+|---|---|---|---|---|---|---|
+| hb-late50 | 30 (80.0%) | 20 (85.0%) | 13 (92.3%) | 7 (71.4%) | 10 (70.0%) | 11 (100.0%) |
+| hb-np | 22 (90.9%) | 20 (90.0%) | 13 (100.0%) | 7 (71.4%) | 2 (100.0%) | 13 (100.0%) |
+
+episodes by piece (both engines)
+| T | all | partner could take a T at once | of those, took one (now or within 2 moves) | could, did not | could not | a T reached the seat's hand before its next move |
+|---|---|---|---|---|---|---|
+| P | 7 (100.0%) | 6 (100.0%) | 3 (100.0%) | 3 (100.0%) | 1 (100.0%) | 3 (100.0%) |
+| N | 13 (73.1%) | 11 (81.8%) | 8 (100.0%) | 3 (33.3%) | 2 (25.0%) | 8 (100.0%) |
+| B | 3 (100.0%) | 2 (100.0%) | 0 (-) | 2 (100.0%) | 1 (100.0%) | 0 (-) |
+| R | 9 (88.9%) | 7 (85.7%) | 3 (100.0%) | 4 (75.0%) | 2 (100.0%) | 2 (100.0%) |
+| Q | 20 (82.5%) | 14 (85.7%) | 12 (91.7%) | 2 (50.0%) | 6 (75.0%) | 11 (100.0%) |
+
+decisions by number of mating types: {1: 54, 2: 1}
+(decision,T) records: 56  partner had no later move: 1  took a T within 3 moves though it could not at once: 5
+sit decisions: 616  of which some +T world has any value: 11
+decisions where only another candidate (not the move played) mates with a single +T: 11
+decisions where the move already mates with nothing arriving: 354
+plies of our board left at the decision (9 = 9+): {1: 3, 3: 3, 5: 6, 7: 9, 8: 2, 9: 33}
+
+# late50-vs-late25: 100 games, 11768 decisions
+
+decisions
+| engine | all | partner could take a T at once | of those, took one (now or within 2 moves) | could, did not | could not | a T reached the seat's hand before its next move |
+|---|---|---|---|---|---|---|
+| hb-late25 | 18 (83.3%) | 14 (92.9%) | 12 (100.0%) | 2 (50.0%) | 4 (50.0%) | 7 (100.0%) |
+| hb-late50 | 32 (93.8%) | 23 (100.0%) | 16 (100.0%) | 7 (100.0%) | 9 (77.8%) | 11 (100.0%) |
+
+decisions by piece (both engines)
+| T | all | partner could take a T at once | of those, took one (now or within 2 moves) | could, did not | could not | a T reached the seat's hand before its next move |
+|---|---|---|---|---|---|---|
+| P | 5 (80.0%) | 5 (80.0%) | 1 (100.0%) | 4 (75.0%) | 0 (-) | 0 (-) |
+| N | 15 (80.0%) | 7 (100.0%) | 5 (100.0%) | 2 (100.0%) | 8 (62.5%) | 4 (100.0%) |
+| B | 7 (100.0%) | 7 (100.0%) | 7 (100.0%) | 0 (-) | 0 (-) | 5 (100.0%) |
+| R | 10 (90.0%) | 8 (100.0%) | 7 (100.0%) | 1 (100.0%) | 2 (50.0%) | 4 (100.0%) |
+| Q | 17 (100.0%) | 14 (100.0%) | 12 (100.0%) | 2 (100.0%) | 3 (100.0%) | 7 (100.0%) |
+
+episodes
+| engine | all | partner could take a T at once | of those, took one (now or within 2 moves) | could, did not | could not | a T reached the seat's hand before its next move |
+|---|---|---|---|---|---|---|
+| hb-late25 | 18 (83.3%) | 14 (92.9%) | 12 (100.0%) | 2 (50.0%) | 4 (50.0%) | 8 (100.0%) |
+| hb-late50 | 31 (93.5%) | 21 (100.0%) | 15 (100.0%) | 6 (100.0%) | 10 (80.0%) | 12 (100.0%) |
+
+episodes by piece (both engines)
+| T | all | partner could take a T at once | of those, took one (now or within 2 moves) | could, did not | could not | a T reached the seat's hand before its next move |
+|---|---|---|---|---|---|---|
+| P | 5 (80.0%) | 5 (80.0%) | 1 (100.0%) | 4 (75.0%) | 0 (-) | 0 (-) |
+| N | 13 (76.9%) | 7 (100.0%) | 5 (100.0%) | 2 (100.0%) | 6 (50.0%) | 4 (100.0%) |
+| B | 7 (100.0%) | 6 (100.0%) | 6 (100.0%) | 0 (-) | 1 (100.0%) | 5 (100.0%) |
+| R | 9 (88.9%) | 7 (100.0%) | 6 (100.0%) | 1 (100.0%) | 2 (50.0%) | 4 (100.0%) |
+| Q | 15 (100.0%) | 10 (100.0%) | 9 (100.0%) | 1 (100.0%) | 5 (100.0%) | 7 (100.0%) |
+
+decisions by number of mating types: {1: 46, 2: 4}
+(decision,T) records: 54  partner had no later move: 1  took a T within 3 moves though it could not at once: 4
+sit decisions: 581  of which some +T world has any value: 27
+decisions where only another candidate (not the move played) mates with a single +T: 12
+decisions where the move already mates with nothing arriving: 403
+plies of our board left at the decision (9 = 9+): {1: 1, 3: 8, 5: 11, 6: 1, 7: 11, 9: 22}
+
+# worlds5-vs-l50: 100 games, 11527 decisions
+
+decisions
+| engine | all | partner could take a T at once | of those, took one (now or within 2 moves) | could, did not | could not | a T reached the seat's hand before its next move |
+|---|---|---|---|---|---|---|
+| hb-l50 | 30 (66.7%) | 25 (60.0%) | 15 (80.0%) | 10 (30.0%) | 5 (100.0%) | 10 (80.0%) |
+| hb-worlds5 | 29 (75.9%) | 21 (95.2%) | 11 (90.9%) | 10 (100.0%) | 8 (25.0%) | 8 (87.5%) |
+
+decisions by piece (both engines)
+| T | all | partner could take a T at once | of those, took one (now or within 2 moves) | could, did not | could not | a T reached the seat's hand before its next move |
+|---|---|---|---|---|---|---|
+| P | 10 (50.0%) | 9 (55.6%) | 3 (100.0%) | 6 (33.3%) | 1 (0.0%) | 2 (100.0%) |
+| N | 13 (76.9%) | 8 (75.0%) | 3 (33.3%) | 5 (100.0%) | 5 (80.0%) | 2 (50.0%) |
+| B | 4 (75.0%) | 3 (100.0%) | 2 (100.0%) | 1 (100.0%) | 1 (0.0%) | 2 (100.0%) |
+| R | 13 (69.2%) | 13 (69.2%) | 8 (87.5%) | 5 (40.0%) | 0 (-) | 6 (83.3%) |
+| Q | 20 (75.0%) | 14 (85.7%) | 11 (81.8%) | 3 (100.0%) | 6 (50.0%) | 7 (71.4%) |
+
+episodes
+| engine | all | partner could take a T at once | of those, took one (now or within 2 moves) | could, did not | could not | a T reached the seat's hand before its next move |
+|---|---|---|---|---|---|---|
+| hb-l50 | 24 (70.8%) | 19 (63.2%) | 12 (75.0%) | 7 (42.9%) | 5 (100.0%) | 10 (80.0%) |
+| hb-worlds5 | 29 (72.4%) | 20 (95.0%) | 10 (90.0%) | 10 (100.0%) | 9 (22.2%) | 8 (87.5%) |
+
+episodes by piece (both engines)
+| T | all | partner could take a T at once | of those, took one (now or within 2 moves) | could, did not | could not | a T reached the seat's hand before its next move |
+|---|---|---|---|---|---|---|
+| P | 8 (50.0%) | 7 (57.1%) | 2 (100.0%) | 5 (40.0%) | 1 (0.0%) | 2 (100.0%) |
+| N | 13 (76.9%) | 8 (75.0%) | 3 (33.3%) | 5 (100.0%) | 5 (80.0%) | 2 (50.0%) |
+| B | 4 (75.0%) | 3 (100.0%) | 2 (100.0%) | 1 (100.0%) | 1 (0.0%) | 2 (100.0%) |
+| R | 10 (80.0%) | 10 (80.0%) | 7 (85.7%) | 3 (66.7%) | 0 (-) | 6 (83.3%) |
+| Q | 18 (72.2%) | 11 (90.9%) | 8 (87.5%) | 3 (100.0%) | 7 (42.9%) | 6 (83.3%) |
+
+decisions by number of mating types: {1: 58, 2: 1}
+(decision,T) records: 60  partner had no later move: 0  took a T within 3 moves though it could not at once: 3
+sit decisions: 644  of which some +T world has any value: 33
+decisions where only another candidate (not the move played) mates with a single +T: 14
+decisions where the move already mates with nothing arriving: 370
+plies of our board left at the decision (9 = 9+): {1: 1, 3: 5, 4: 2, 5: 4, 6: 1, 7: 6, 8: 1, 9: 40}
+
+# pooled over the three matches
+
+decisions
+| engine | all | partner could take a T at once | of those, took one (now or within 2 moves) | could, did not | could not | a T reached the seat's hand before its next move |
+|---|---|---|---|---|---|---|
+| hb-l50 | 30 (66.7%) | 25 (60.0%) | 15 (80.0%) | 10 (30.0%) | 5 (100.0%) | 10 (80.0%) |
+| hb-late25 | 18 (83.3%) | 14 (92.9%) | 12 (100.0%) | 2 (50.0%) | 4 (50.0%) | 7 (100.0%) |
+| hb-late50 | 64 (87.5%) | 44 (93.2%) | 30 (96.7%) | 14 (85.7%) | 20 (75.0%) | 22 (100.0%) |
+| hb-np | 23 (91.3%) | 21 (90.5%) | 15 (100.0%) | 6 (66.7%) | 2 (100.0%) | 13 (100.0%) |
+| hb-worlds5 | 29 (75.9%) | 21 (95.2%) | 11 (90.9%) | 10 (100.0%) | 8 (25.0%) | 8 (87.5%) |
+
+decisions by piece (all engines, all matches)
+| T | all | partner could take a T at once | of those, took one (now or within 2 moves) | could, did not | could not | a T reached the seat's hand before its next move |
+|---|---|---|---|---|---|---|
+| P | 23 (73.9%) | 21 (76.2%) | 8 (100.0%) | 13 (61.5%) | 2 (50.0%) | 5 (100.0%) |
+| N | 42 (77.4%) | 26 (84.6%) | 16 (87.5%) | 10 (80.0%) | 16 (65.6%) | 14 (92.9%) |
+| B | 14 (92.9%) | 12 (100.0%) | 9 (100.0%) | 3 (100.0%) | 2 (50.0%) | 7 (100.0%) |
+| R | 32 (81.2%) | 28 (82.1%) | 19 (94.7%) | 9 (55.6%) | 4 (75.0%) | 13 (92.3%) |
+| Q | 59 (85.6%) | 44 (90.9%) | 37 (91.9%) | 7 (85.7%) | 15 (70.0%) | 25 (92.0%) |
+
+episodes
+| engine | all | partner could take a T at once | of those, took one (now or within 2 moves) | could, did not | could not | a T reached the seat's hand before its next move |
+|---|---|---|---|---|---|---|
+| hb-l50 | 24 (70.8%) | 19 (63.2%) | 12 (75.0%) | 7 (42.9%) | 5 (100.0%) | 10 (80.0%) |
+| hb-late25 | 18 (83.3%) | 14 (92.9%) | 12 (100.0%) | 2 (50.0%) | 4 (50.0%) | 8 (100.0%) |
+| hb-late50 | 61 (86.9%) | 41 (92.7%) | 28 (96.4%) | 13 (84.6%) | 20 (75.0%) | 23 (100.0%) |
+| hb-np | 22 (90.9%) | 20 (90.0%) | 13 (100.0%) | 7 (71.4%) | 2 (100.0%) | 13 (100.0%) |
+| hb-worlds5 | 29 (72.4%) | 20 (95.0%) | 10 (90.0%) | 10 (100.0%) | 9 (22.2%) | 8 (87.5%) |
+
+episodes by piece (all engines, all matches)
+| T | all | partner could take a T at once | of those, took one (now or within 2 moves) | could, did not | could not | a T reached the seat's hand before its next move |
+|---|---|---|---|---|---|---|
+| P | 20 (75.0%) | 18 (77.8%) | 6 (100.0%) | 12 (66.7%) | 2 (50.0%) | 5 (100.0%) |
+| N | 39 (75.6%) | 26 (84.6%) | 16 (87.5%) | 10 (80.0%) | 13 (57.7%) | 14 (92.9%) |
+| B | 14 (92.9%) | 11 (100.0%) | 8 (100.0%) | 3 (100.0%) | 3 (66.7%) | 7 (100.0%) |
+| R | 28 (85.7%) | 24 (87.5%) | 16 (93.8%) | 8 (75.0%) | 4 (75.0%) | 12 (91.7%) |
+| Q | 53 (84.0%) | 35 (91.4%) | 29 (93.1%) | 6 (83.3%) | 18 (69.4%) | 24 (95.8%) |
+

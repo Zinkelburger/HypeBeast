@@ -1,0 +1,15 @@
+game 3 ply 40 Awhite: off same | guard: probed QP mates Q move B@e4 main nodes 257376 depth 14 | full mate prices: mates Q move B@e4 main nodes 217211 | no prices: move B@h4 main nodes 272293
+game 3 ply 40 Bwhite: off same | guard: probed QP mates - move d1h5 main nodes 261898 depth 14 | full mate prices: mates - move d1h5 main nodes 221823 | no prices: move d1h5 main nodes 277150
+game 11 ply 61 Ablack: off same | guard: probed QNP mates - move B@b7 main nodes 250805 depth 14 | full mate prices: mates - move N@h4 main nodes 215820 | no prices: move B@b7 main nodes 270913
+game 11 ply 61 Bwhite: off same | guard: probed QBP mates - move h4e7 main nodes 257146 depth 14 | full mate prices: mates - move h4e7 main nodes 222094 | no prices: move h4e7 main nodes 277158
+game 35 ply 72 Ablack: off same | guard: probed P mates - move g7f6 main nodes 269290 depth 13 | full mate prices: mates - move g7f6 main nodes 224820 | no prices: move g7f6 main nodes 279332
+game 35 ply 72 Bblack: off same | guard: probed QP mates - move g1a1 main nodes 277758 depth 12 | full mate prices: mates - move g1a1 main nodes 237358 | no prices: move N@c4 main nodes 292520
+game 22 ply 139 Awhite: off same | guard: probed None mates - move pass main nodes 0 depth None | full mate prices: mates - move pass main nodes 0 | no prices: move pass main nodes 0
+game 22 ply 139 Bblack: off same | guard: probed QBP mates - move h7g6 main nodes 330543 depth 12 | full mate prices: mates - move h7g6 main nodes 330543 | no prices: move h7g6 main nodes 330543
+game 16 ply 83 Awhite: off same | guard: probed BP mates - move f2e2 main nodes 262594 depth 14 | full mate prices: mates - move f2e2 main nodes 222539 | no prices: move f2e2 main nodes 277492
+game 16 ply 83 Bblack: off same | guard: probed RBP mates - move f8g7 main nodes 254317 depth 15 | full mate prices: mates - move f8g7 main nodes 219338 | no prices: move f8g7 main nodes 274446
+game 7 ply 96 Awhite: off same | guard: probed QP mates - move N@h5 main nodes 274227 depth 12 | full mate prices: mates - move N@h5 main nodes 234135 | no prices: move N@h5 main nodes 289509
+game 7 ply 96 Bwhite: off same | guard: probed QP mates - move e2d2 main nodes 264187 depth 12 | full mate prices: mates - move e2d2 main nodes 224087 | no prices: move e2d2 main nodes 281120
+game 28 ply 110 Awhite: off same | guard: probed P mates - move N@d7 main nodes 330193 depth 13 | full mate prices: mates - move N@d7 main nodes 330193 | no prices: move N@d7 main nodes 330193
+game 28 ply 110 Bblack: off same | guard: probed None mates - move pass main nodes 0 depth None | full mate prices: mates - move pass main nodes 0 | no prices: move pass main nodes 0
+guard off: 14 of 14 decisions as bin/hypebeast-v8g; hb_error lines: 0

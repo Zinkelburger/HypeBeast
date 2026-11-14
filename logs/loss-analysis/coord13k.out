@@ -1,0 +1,16 @@
+game 3 ply 40 Awhite: off same | heard: fresh reason world_switch move B@h4 candidates (move, feed, S) [('h5g3', 0, 554), ('d4d5', 0, 497), ('h5g7', -190, 199), ('B@h4', 0, 584), ('B@d3', 0, 516), ('N@e4', 0, 538)] | nothing heard: B@h4 | below the floor: low B@h4 ok
+game 3 ply 40 Bwhite: off same | heard: fresh reason kept_main move d1h5 candidates (move, feed, S) [('d1h5', 0, 29), ('P@f3', 0, -125), ('d3e4', 0, -239), ('B@c1', 0, -78)] | nothing heard: d1h5 | below the floor: low d1h5 ok
+game 11 ply 61 Ablack: off same | heard: fresh reason kept_main move N@h4 candidates (move, feed, S) [('N@h4', 0, -225), ('d7d6', 0, -396), ('d7c6', 200, -207), ('B@b7', -900, -1036), ('B@a8', -900, -1174)] | nothing heard: B@b7 | below the floor: low B@b7 ok
+game 11 ply 61 Bwhite: off same | heard: fresh reason kept_main move h4e7 candidates (move, feed, S) [('h4e7', 0, 350), ('e1g1', 0, 236)] | nothing heard: h4e7 | below the floor: low h4e7 ok
+game 35 ply 72 Ablack: off same | heard: fresh reason kept_main move g7f6 candidates (move, feed, S) [('g7f6', 200, -653), ('e7e6', 0, -1908), ('e7f6', 200, -634)] | nothing heard: g7f6 | below the floor: low g7f6 ok
+game 35 ply 72 Bblack: off same | heard: fresh reason feed_switch move g1a1 candidates (move, feed, S) [('N@c4', 0, 898), ('g1a1', 180, 1090)] | nothing heard: N@c4 | below the floor: low N@c4 ok
+game 16 ply 83 Awhite: off same | heard: fresh reason feed_switch move c5e7 candidates (move, feed, S) [('f2e2', 0, 1233), ('N@e4', 0, 836), ('c5e7', 330, 1285), ('c5e3', 0, 961)] | nothing heard: f2e2 | below the floor: low f2e2 ok
+game 16 ply 83 Bblack: off same | heard: fresh reason kept_main move f8g7 candidates (move, feed, S) [('f8g7', 0, 1287), ('b6f2', 0, 855), ('Q@e1', -900, -37), ('N@f1', -250, 717)] | nothing heard: f8g7 | below the floor: low f8g7 ok
+game 7 ply 96 Awhite: off same | heard: fresh reason kept_main move N@h5 candidates (move, feed, S) [('N@h5', 0, 250), ('N@g3', 0, 60), ('e4e6', 200, -56)] | nothing heard: N@h5 | below the floor: low N@h5 ok
+game 7 ply 96 Bwhite: off same | heard: fresh reason kept_main move e2d2 candidates (move, feed, S) [('e2d2', 200, -464), ('f3d2', 200, -596), ('e1d2', 200, -670)] | nothing heard: e2d2 | below the floor: low e2d2 ok
+game 22 ply 60 Ablack: off same | heard: fresh reason kept_main move f6h8 candidates (move, feed, S) [('f6h8', 0, 142), ('b2d1', -450, -362), ('f6g6', 0, 125)] | nothing heard: f6h8 | below the floor: low f6h8 ok
+game 22 ply 60 Bblack: off same | heard: fresh reason kept_main move f8e8 candidates (move, feed, S) [('f8e8', 0, -367), ('f8c8', 0, -417), ('e4c3', -190, -831)] | nothing heard: f8e8 | below the floor: low f8e8 ok
+game 28 ply 52 Awhite: off same | heard: fresh reason world_switch move h5f7 candidates (move, feed, S) [('a1b1', 0, -717), ('Q@g3', 0, -724), ('h4g5', 0, -699), ('h5f7', 0, -624), ('d1f3', 0, -716)] | nothing heard: h5f7 | below the floor: low h5f7 ok
+game 28 ply 52 Bwhite: off same | heard: fresh reason kept_main move P@e3 candidates (move, feed, S) [('P@e3', 0, 698), ('P@a6', 0, 697), ('d4e6', -190, 427)] | nothing heard: P@e3 | below the floor: low P@e3 ok
+all off: 14 of 14 decisions as bin/hypebeast-v8j; decisions with a candidate that hands something over: 11
+PASS

@@ -1,0 +1,69 @@
+# late50-vs-np-b
+hb-late50: games with an episode 27, lost [14, 33, 49, 71, 77]; lost with could-but-did-not episodes [14, 77]; drawn [86]
+hb-np: games with an episode 18, lost [24, 65]; lost with could-but-did-not episodes [24, 65]; drawn []
+  arrived: ('checkmate', 'our board', 'our team won', '>4 left') 20
+  arrived: ('checkmate', 'other board', 'our team won', '>4 left') 1
+  arrived: ('checkmate', 'other board', 'our team won', '<=4 plies of ours left') 1
+  arrived: ('flag', 'other board', 'our team won', '<=4 plies of ours left') 1
+  arrived: ('checkmate', 'our board', 'our team won', '<=4 plies of ours left') 1
+  g2 Bwhite n=76 hb-np T=R score=-745 won=1.0 | partner Ablack tok 79 played @h3, could ['Bxa1']; partner decision n=79 score=-1220 played=P@h3 | next partner toks ['1a8d8', '1d7e5']
+  g2 Bwhite n=85 hb-np T=R score=-267 won=1.0 | partner Ablack tok 86 played Nxe5, could ['Bxa1']; partner decision n=86 score=-555 played=d7e5 | next partner toks ['1B@e4', '1e8d7']
+  g4 Bwhite n=169 hb-np T=N score=-555 won=1.0 | partner Ablack tok 170 played Q@e5#, could ['Rxe7+']; partner decision n=170 score=99999 played=Q@e5 | next partner toks []
+  g14 Bblack n=181 hb-late50 T=Q score=-1309 won=0.0 | partner Awhite tok 182 played B@e4, could ['Nxd7']; partner decision n=182 score=-2167 played=B@e4 | next partner toks ['1g2h1', '1e4g2']
+  g20 Bwhite n=174 hb-np T=B score=99987 won=1.0 | partner Ablack tok 176 played d5, could ['Nxg2']; partner decision n=176 score=142 played=d7d5 | next partner toks ['1d5e4', '1P@h3']
+  g24 Bwhite n=83 hb-np T=N score=177 won=0.0 | partner Ablack tok 84 played @e2, could ['Kxg7', 'Qxc5']; partner decision n=84 score=-245 played=P@e2 | next partner toks ['1B@f4', '1Q@f1']
+  g35 Bblack n=96 hb-np T=R score=1317 won=1.0 | partner Awhite tok 99 played Bxe7+, could ['Rxg8']; partner decision n=99 score=2417 played=f6e7 | next partner toks ['1B@f6', '1d1g4']
+  g42 Awhite n=96 hb-late50 T=P score=234 won=1.0 | partner Bblack tok 101 played Ne1+, could ['Ndxe3', 'Ncxe3', 'hxg2']; partner decision n=101 score=139 played=c2e1 | next partner toks ['2B@h4', '2h4g5']
+  g51 Ablack n=157 hb-late50 T=Q score=703 won=1.0 | partner Bwhite tok 159 played N@c7+, could ['Rxg8+']; partner decision n=159 score=99995 played=N@c7 | next partner toks ['2N@c6', '2f4d5']
+  g65 Bblack n=148 hb-np T=N score=95 won=0.0 | partner Awhite tok 151 played Kh1, could ['Qxh3', 'gxh3']; partner decision n=151 score=433 played=g1h1 | next partner toks ['1P@f7', '1f6f7']
+  g69 Bwhite n=104 hb-late50 T=B score=-272 won=1.0 | partner Ablack tok 107 played fxg3+, could ['Bxd3']; partner decision n=107 score=-1283 played=f4g3 | next partner toks ['1P@e3']
+  g77 Bwhite n=133 hb-late50 T=R score=590 won=0.0 | partner Ablack tok 134 played Bxe6, could ['Nxg2']; partner decision n=134 score=631 played=d7e6 | next partner toks ['1f7e6', '1B@f3']
+  g89 Bwhite n=93 hb-late50 T=P score=-20 won=1.0 | partner Ablack tok 94 played B@f3+, could ['Bxh4', 'Nxf2', 'Qxe4+', 'Qxg3+']; partner decision n=94 score=99997 played=B@f3 | next partner toks ['1P@h2']
+  g91 Bwhite n=78 hb-late50 T=P score=-328 won=1.0 | partner Ablack tok 81 played Bce6, could ['cxb2']; partner decision n=81 score=-1288 played=c8e6 | next partner toks ['1Q@e4', '1e6f7']
+
+# late50-vs-late25
+hb-late25: games with an episode 15, lost [60, 91, 93]; lost with could-but-did-not episodes [60]; drawn []
+hb-late50: games with an episode 22, lost [58, 83]; lost with could-but-did-not episodes []; drawn []
+  arrived: ('checkmate', 'our board', 'our team won', '>4 left') 13
+  arrived: ('checkmate', 'our board', 'our team won', '<=4 plies of ours left') 6
+  arrived: ('checkmate', 'other board', 'our team won', '>4 left') 1
+  g21 Ablack n=90 hb-late50 T=P score=-58 won=1.0 | partner Bwhite tok 92 played B@g3, could ['Bxh6']; partner decision n=92 score=-428 played=B@g3 | next partner toks ['2g1g2', '2P@e4']
+  g29 Ablack n=76 hb-late50 T=R score=489 won=1.0 | partner Bwhite tok 79 played f3, could ['Bxf8']; partner decision n=79 score=-9 played=f2f3 | next partner toks ['2g1h1', '2P@g7']
+  g48 Bblack n=55 hb-late50 T=P score=590 won=1.0 | partner Awhite tok 56 played Bxf6, could ['Nxc6']; partner decision n=56 score=550 played=g5f6 | next partner toks ['1N@d7', '1B@f7']
+  g60 Ablack n=145 hb-late25 T=P score=-104 won=0.0 | partner Bwhite tok 146 played Ne2, could ['Bxc7']; partner decision n=146 score=-1445 played=c3e2 | next partner toks ['2R@h2', '2e2g1']
+  g71 Bblack n=86 hb-late25 T=N score=2303 won=1.0 | partner Awhite tok 90 played Qf3, could ['Kxg3']; partner decision n=90 score=1628 played=d1f3 | next partner toks ['1f2e2', '1Q@e8']
+  g73 Bwhite n=85 hb-late50 T=Q score=-295 won=1.0 | partner Ablack tok 86 played Rxg3, could ['Nxg2']; partner decision n=86 score=-994 played=g8g3 | next partner toks ['1P@f4', '1P@e5']
+  g87 Ablack n=118 hb-late50 T=N score=712 won=1.0 | partner Bwhite tok 121 played Nxe5, could ['Rxg8+']; partner decision n=121 score=276 played=f3e5 | next partner toks ['2Q@f6', '2e5f7']
+  g87 Ablack n=140 hb-late50 T=Q score=924 won=1.0 | partner Bwhite tok 143 played N@e7+, could ['Qxf8+']; partner decision n=143 score=1732 played=N@e7 | next partner toks ['2B@e4', '2f6f5']
+  g91 Ablack n=107 hb-late50 T=P score=1802 won=1.0 | partner Bwhite tok 108 played Nxe6+, could ['Nxh7', 'Ngxf7+', 'Nexf7+', 'Nxc3', 'bxc3']; partner decision n=108 score=-287 played=g5e6 | next partner toks ['2P@e7', '2e5c4']
+
+# worlds5-vs-l50
+hb-l50: games with an episode 20, lost [4, 21, 26, 50, 67]; lost with could-but-did-not episodes [21, 50, 67]; drawn []
+hb-worlds5: games with an episode 24, lost [13, 39, 45, 66, 68, 90, 91]; lost with could-but-did-not episodes []; drawn []
+  arrived: ('checkmate', 'our board', 'our team won', '>4 left') 8
+  arrived: ('checkmate', 'other board', 'our team won', '>4 left') 3
+  arrived: ('checkmate', 'other board', 'lost', '>4 left') 2
+  arrived: ('checkmate', 'other board', 'our team won', '<=4 plies of ours left') 2
+  arrived: ('checkmate', 'our board', 'our team won', '<=4 plies of ours left') 2
+  arrived: ('checkmate', 'other board', 'lost', '<=4 plies of ours left') 1
+  g5 Ablack n=109 hb-worlds5 T=Q score=1598 won=1.0 | partner Bwhite tok 110 played B@f1, could ['Nxe6']; partner decision n=110 score=30 played=B@f1 | next partner toks ['2f1h3', '2P@g2']
+  g5 Bwhite n=89 hb-worlds5 T=R score=-1051 won=1.0 | partner Ablack tok 90 played Bxf7, could ['gxf1=Q', 'gxf1=R', 'gxf1=B', 'gxf1=N+']; partner decision n=90 score=498 played=h5f7 | next partner toks ['1g4f3', '1P@e2']
+  g7 Bwhite n=123 hb-worlds5 T=P score=1111 won=1.0 | partner Ablack tok 124 played @f2+, could ['Rxh6', 'Rxg5', 'Rxh2', 'Nxf3+', 'Nxc2+', 'gxh6']; partner decision n=124 score=99993 played=P@f2 | next partner toks ['1Q@d1', '1h1f2']
+  g14 Bwhite n=41 hb-l50 T=P score=936 won=1.0 | partner Ablack tok 42 played Nxe5, could ['Nxd4']; partner decision n=42 score=562 played=c6e5 | next partner toks ['1f6e4', '1N@f3']
+  g15 Ablack n=114 hb-worlds5 T=N score=708 won=1.0 | partner Bwhite tok 117 played Kh1, could ['Nxf3', 'Bxf3']; partner decision n=117 score=483 played=g1h1 | next partner toks ['2e5d7', '2d7e5']
+  g18 Awhite n=127 hb-worlds5 T=N score=-342 won=1.0 | partner Bblack tok 128 played @f4, could ['Bxf3', 'gxf6']; partner decision n=128 score=-507 played=P@f4 | next partner toks ['2f8g8', '2e8g8']
+  g21 Awhite n=93 hb-l50 T=R score=515 won=0.0 | partner Bblack tok 94 played N@h3+, could ['Nxe4', 'dxe5']; partner decision n=94 score=220 played=N@h3 | next partner toks ['2R@h1', '2P@g2']
+  g21 Awhite n=97 hb-l50 T=R score=-28 won=0.0 | partner Bblack tok 98 played R@h1+, could ['Nxe4', 'dxe5']; partner decision n=98 score=0 played=R@h1 | next partner toks ['2P@g2', '2f3g2']
+  g21 Awhite n=101 hb-l50 T=R score=-552 won=0.0 | partner Bblack tok 102 played @g2+, could ['Nxe4', 'dxe5']; partner decision n=102 score=-21 played=P@g2 | next partner toks ['2f3g2', '2Q@f1']
+  g28 Awhite n=111 hb-worlds5 T=R score=1921 won=1.0 | partner Bblack tok 112 played Nxh5, could ['Nxg2']; partner decision n=112 score=111 played=f4h5 | next partner toks ['2g8f7', '2P@h3']
+  g32 Bwhite n=144 hb-l50 T=B score=3069 won=1.0 | partner Ablack tok 147 played dxc3, could ['Bxd3', 'Qxd3']; partner decision n=147 score=1111 played=d4c3 | next partner toks ['1Q@e5', '1N@e7']
+  g42 Bwhite n=101 hb-l50 T=N score=-250 won=1.0 | partner Ablack tok 102 played Rd8, could ['Bxf4']; partner decision n=102 score=-1509 played=h8d8 | next partner toks ['1c2b2', '1P@d7']
+  g50 Ablack n=120 hb-l50 T=P score=-319 won=0.0 | partner Bwhite tok 127 played @f6, could ['Bxc7+', 'Nxc7']; partner decision n=127 score=-734 played=P@f6 | next partner toks ['2d5f6', '2Q@g7']
+  g50 Ablack n=122 hb-l50 T=P score=-550 won=0.0 | partner Bwhite tok 127 played @f6, could ['Bxc7+', 'Nxc7']; partner decision n=127 score=-734 played=P@f6 | next partner toks ['2d5f6', '2Q@g7']
+  g56 Awhite n=105 hb-worlds5 T=N score=929 won=1.0 | partner Bblack tok 106 played dxe4, could ['Qxb6']; partner decision n=106 score=-256 played=d5e4 | next partner toks ['2d7e6', '2f3g2']
+  g67 Bblack n=76 hb-l50 T=P score=54 won=0.0 | partner Awhite tok 79 played R@e3, could ['Nxf6+', 'Bxc7']; partner decision n=79 score=-1244 played=R@e3 | next partner toks ['1e1c1', '1f3d4']
+  g67 Bblack n=84 hb-l50 T=P score=-617 won=0.0 | partner Awhite tok 87 played Nd4, could ['Bxc7', 'Rxd3', 'cxd3']; partner decision n=87 score=-1190 played=f3d4 | next partner toks ['1Q@a1', '1d4e2']
+  g72 Awhite n=91 hb-worlds5 T=N score=1025 won=1.0 | partner Bblack tok 93 played Q@e1+, could ['Qxg3', 'Qxc3']; partner decision n=93 score=1078 played=Q@e1 | next partner toks ['2e1a1', '2h7h6']
+  g72 Bblack n=64 hb-worlds5 T=Q score=727 won=1.0 | partner Awhite tok 69 played @e6, could ['Nxf7']; partner decision n=69 score=-137 played=P@e6 | next partner toks ['1P@d2', '1e1d1']
+  g74 Bblack n=99 hb-worlds5 T=Q score=-98 won=1.0 | partner Awhite tok 100 played B@g7+, could ['Qxg4']; partner decision n=100 score=99995 played=B@g7 | next partner toks ['1R@h6']
+

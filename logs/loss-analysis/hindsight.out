@@ -1,0 +1,15 @@
+2003 switches, 4006 searches of 500000 nodes, 6 at once
+
+group | switches | judged | played better by 50+ | within 50 | main better by 50+ | mean gain of the switch (cp, each value clipped at +/-2000) | median | switch avoided a mate | switch walked into one
+plan, steered by the told line | 264 | 264 | 22% | 33% | 44% | -45 | -32 | 0 | 0
+   something arrived: 178, mean gain -19, played better 28%, main better 40%
+   nothing arrived: 86, mean gain -97, played better 10%, main better 52%
+plan, own lines would switch too | 497 | 497 | 32% | 37% | 31% | +57 | +0 | 13 | 4
+   something arrived: 381, mean gain +87, played better 37%, main better 27%
+   nothing arrived: 116, mean gain -42, played better 16%, main better 44%
+plan, no line heard | 297 | 297 | 28% | 41% | 31% | +59 | -6 | 6 | 1
+   something arrived: 206, mean gain +109, played better 36%, main better 26%
+   nothing arrived: 91, mean gain -54, played better 10%, main better 44%
+baseline | 945 | 945 | 29% | 36% | 35% | +50 | -6 | 35 | 2
+   something arrived: 628, mean gain +105, played better 36%, main better 28%
+   nothing arrived: 317, mean gain -58, played better 15%, main better 48%

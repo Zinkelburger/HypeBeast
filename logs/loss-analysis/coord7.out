@@ -1,0 +1,127 @@
+3 40 Awhite ('B@h4', 'pass') ('B@h4', '686', 'world_switch', '490063', '14') | off: IDENTICAL | minimal, nothing heard: IDENTICAL errs []
+    says: v1 n=21 at=20 d=9 score=614 mate=0 hands=BN/BP lines 4:B@h4,f7f6,d4d5,B@g4,d5c6,b7c6
+    own forecast: talk=own_none mover=opponent depth=7 mate=0 worlds: none=0.46 +B-N=0.28 +N-Q=0.19 +P=0.07 | top 0.38 d1h5,d8d7,e5d7,b8d7 [2-Q 3+N]; top 0.08 P@f3,B@d6,f3e4,d2e4 [2-N 3+P]; top 0.06 P@h6,g7h6,B@c1,P@d6 [1+P]; top 0.05 B@c1,e4f2,e1f2,d2e4 [1+P 2-N]
+3 40 Bwhite ('pass', 'd1h5') ('d1h5', '-63', 'kept_main', '490035', '14') | off: IDENTICAL | minimal, nothing heard: IDENTICAL errs []
+    says: v1 n=21 at=20 d=14 score=-63 mate=0 hands=BP/BP lines 4:d1h5,d8f6,B@h4,P@b2,d3e4,b2a1r
+    own forecast: talk=own_none mover=opponent depth=8 mate=0 worlds: none=0.87 +B-B=0.13 | top 0.26 B@e2,f7f6,e2d3,d8e7 []; top 0.26 B@g5,B@e7,g5e7,d6e7 [2-B 3+B]; top 0.25 h5g3,B@g4,N@g5,d6e7 []; top 0.18 B@d3,d8e7,h5g3,B@g6 []
+    Bblack hears Awhite, 0 plies since: not on turn
+    Bblack hears Awhite, 1 ply since: not on turn
+    Bblack hears Awhite, 2 plies since, the reply expected: not on turn
+    Bblack hears Awhite, 2 plies since, another reply (B@a2): not on turn
+    Ablack hears Bwhite, 0 plies since: not on turn
+    Ablack hears Bwhite, 1 ply since: not on turn
+    Ablack hears Bwhite, 2 plies since, the reply expected: not on turn
+    Ablack hears Bwhite, 2 plies since, another reply (B@a3): not on turn
+11 61 Ablack ('B@b7', 'pass') ('B@b7', '-24', 'world_switch', '490085', '14') | off: IDENTICAL | minimal, nothing heard: IDENTICAL errs []
+    says: v1 n=30 at=29 d=10 score=-223 mate=0 hands=NNP/BNP lines 4:B@b7,c6d7,d8d7,N@e5,N@h4,f3h5
+    own forecast: talk=own_none mover=partner depth=8 mate=0 worlds: none=0.44 +B+N-B-B=0.24 +B-B=0.17 +N-B=0.14 | top 0.49 h4e7,d8e7,d3e4,e7e4 [0+B 1-B 2+N 3-B]; top 0.16 d3e4,e7h4,N@g3,N@g4 [0+N 1-B]; top 0.21 e1g1,c8f5,h4e7,d8e7 [1-P 2+B 3-B]; top 0.12 P@h6,e7h4,N@g3,g7h6 [1-B 3-P]
+11 61 Bwhite ('pass', 'h4e7') ('h4e7', '577', 'kept_main', '490041', '14') | off: IDENTICAL | minimal, nothing heard: IDENTICAL errs []
+    says: v1 n=33 at=32 d=14 score=577 mate=0 hands=NP/NP lines 4:h4e7,d8e7,N@d5,e7e8,P@h6,c8f5 3:h4e7,d8e7,N@d5,e7e8,e3d4,c7c6 2:h4e7,d8e7,N@d5,c8f5,d5e7,e4c3 1:h4e7,d8e7,d3e4,e7e4,N@g3,c8f5
+    own forecast: talk=own_none mover=partner depth=8 mate=0 worlds: none=0.41 +B-Q=0.30 -Q=0.16 +N=0.13 | top 0.23 N@g5,c6d7,d8d7,P@b7 [1-Q 2+B]; top 0.23 N@h4,c6d7,d8d7,P@b7 [1-Q 2+B]; top 0.25 d7d6,N@e7,d6e7,P@b7 [2+N]; top 0.14 d7c6,N@e7,c8b7,e7c6 [0+B 3-Q]
+    Bwhite hears Ablack, 0 plies since:
+        told: talk=told mover=partner depth=10 mate=0 worlds: none=0.15 +B-Q=0.50 -Q=0.35 | told 1.00 B@b7,c6d7,d8d7,N@e5 [1-Q 2+B]
+        own:  talk=own_none mover=partner depth=8 mate=0 worlds: none=0.41 +B-Q=0.30 -Q=0.16 +N=0.13 | top 0.23 N@g5,c6d7,d8d7,P@b7 [1-Q 2+B]; top 0.23 N@h4,c6d7,d8d7,P@b7 [1-Q 2+B]; top 0.25 d7d6,N@e7,d6e7,P@b7 [2+N]; top 0.14 d7c6,N@e7,c8b7,e7c6 [0+B 3-Q]
+        move ('pass', 'h4e7') reason kept_main main_nodes 330196 depth 14 | own: move ('pass', 'h4e7') reason kept_main main_nodes 277158 depth 14 | errs []
+    Bwhite hears Ablack, 1 ply since:
+        told: talk=told mover=opponent depth=10 mate=0 worlds: none=0.15 +B-Q=0.85 | told 1.00 c6d7,d8d7,N@e5,N@h4 [0-Q 1+B]
+        own:  talk=own_none mover=opponent depth=8 mate=0 worlds: none=0.20 +B-Q=0.74 +B-B=0.06 | top 0.87 c6d7,d8d7,N@e5,P@g4 [0-Q 1+B]; top 0.07 c6b7,c8b7,N@e5,d7a4 [0-B 1+B]; top 0.02 N@e5,b7c6,P@g3,d7d6 [1+B]; top 0.01 g1h2,b7c6,N@e5,N@h4 [1+B]
+        move ('pass', 'h4e7') reason kept_main main_nodes 330196 depth 14 | own: move ('pass', 'h4e7') reason kept_main main_nodes 278124 depth 14 | errs []
+    Bwhite hears Ablack, 2 plies since, the reply expected:
+        told: talk=told mover=partner depth=10 mate=0 worlds: none=0.15 +B=0.85 | told 1.00 d8d7,N@e5,N@h4,f3h5 [0+B]
+        own:  talk=own_none mover=partner depth=9 mate=0 worlds: none=0.24 +B-R=0.38 +B=0.37 | top 0.76 d8d7,N@h6,N@h4,h6g8 [0+B 3-R]; top 0.11 c8b8,P@c6,N@g5 []; top 0.13 c8d7,N@e5,d7c8,N@e7 [0+B]
+        move ('pass', 'h4e7') reason kept_main main_nodes 330401 depth 14 | own: move ('pass', 'h4e7') reason kept_main main_nodes 289394 depth 14 | errs []
+    Bwhite hears Ablack, 2 plies since, another reply (N@a3):
+        told: talk=own_reply mover=partner depth=8 mate=0 worlds: none=0.29 +B=0.55 +B-Q=0.11 +B+P-R=0.05 | top 0.58 b7c6,g1h2,N@b8 [0+B]; top 0.08 N@g5,c6d7,d8d7,g1h2 [1-Q 2+B]; top 0.09 g8g2,f3g2,b7c6,N@e5 [0+P 1-R 2+B]; top 0.07 P@h2,g1h2,b7c6,P@g3 [1-P 2+B]
+        own:  talk=own_none mover=partner depth=8 mate=0 worlds: none=0.29 +B=0.55 +B-Q=0.11 +B+P-R=0.05 | top 0.58 b7c6,g1h2,N@b8 [0+B]; top 0.08 N@g5,c6d7,d8d7,g1h2 [1-Q 2+B]; top 0.09 g8g2,f3g2,b7c6,N@e5 [0+P 1-R 2+B]; top 0.07 P@h2,g1h2,b7c6,P@g3 [1-P 2+B]
+        move ('pass', 'h4e7') reason kept_main main_nodes 278124 depth 14 | own: move ('pass', 'h4e7') reason kept_main main_nodes 278124 depth 14 | errs []
+    Ablack hears Bwhite, 0 plies since:
+        told: talk=told mover=partner depth=14 mate=0 worlds: none=0.15 +B-B=0.70 +B-B-P=0.10 +B+N-B-B=0.05 | told 0.40 h4e7,d8e7,N@d5,e7e8 [0+B 1-B]; told 0.30 h4e7,d8e7,N@d5,e7e8 [0+B 1-B]; told 0.20 h4e7,d8e7,N@d5,c8f5 [0+B 1-B 3-P]; told 0.10 h4e7,d8e7,d3e4,e7e4 [0+B 1-B 2+N 3-B]
+        own:  talk=own_none mover=partner depth=8 mate=0 worlds: none=0.44 +B+N-B-B=0.24 +B-B=0.17 +N-B=0.14 | top 0.49 h4e7,d8e7,d3e4,e7e4 [0+B 1-B 2+N 3-B]; top 0.16 d3e4,e7h4,N@g3,N@g4 [0+N 1-B]; top 0.21 e1g1,c8f5,h4e7,d8e7 [1-P 2+B 3-B]; top 0.12 P@h6,e7h4,N@g3,g7h6 [1-B 3-P]
+        move ('B@b7', 'pass') reason world_switch main_nodes 330338 depth 14 | own: move ('B@b7', 'pass') reason world_switch main_nodes 270913 depth 14 | errs []
+    Ablack hears Bwhite, 1 ply since:
+        told: talk=told mover=opponent depth=14 mate=0 worlds: none=0.18 -B=0.67 +Q-B-P=0.10 +N-B-B=0.05 | told 0.40 d8e7,N@d5,e7e8,P@h6 [0-B]; told 0.30 d8e7,N@d5,e7e8,e3d4 [0-B]; told 0.20 d8e7,N@d5,c8f5,d5e7 [0-B 2-P 3+Q]; told 0.10 d8e7,d3e4,e7e4,N@g3 [0-B 1+N 2-B]
+        own:  talk=own_none mover=opponent depth=9 mate=0 worlds: none=0.39 -B=0.46 +P-Q-P=0.08 -P=0.06 | top 0.27 P@b2,a1b1,d8e7,N@d5 [2-B]; top 0.39 d8e7,N@d5,P@b2,a1b1 [0-B]; top 0.11 P@d2,f3d2,d8e7,d3e4 [1+P 2-B 3+N]; top 0.06 c8f5,e7d8,e4c3,d8f6 [0-P 1+Q 2-P]
+        move ('B@b7', 'pass') reason world_switch main_nodes 330266 depth 14 | own: move ('B@b7', 'pass') reason world_switch main_nodes 272160 depth 14 | errs []
+    Ablack hears Bwhite, 2 plies since, the reply expected:
+        told: talk=told mover=partner depth=14 mate=0 worlds: none=0.58 -P=0.27 +Q-P-P=0.10 +N-B-P=0.05 | told 0.40 N@d5,e7e8,P@h6,c8f5 [3-P]; told 0.30 N@d5,e7e8,e3d4,c7c6 []; told 0.20 N@d5,c8f5,d5e7,e4c3 [1-P 2+Q 3-P]; told 0.10 d3e4,e7e4,N@g3,c8f5 [0+N 1-B 3-P]
+        own:  talk=own_none mover=partner depth=9 mate=0 worlds: none=0.39 -P=0.27 +N-R=0.19 +Q-Q-P=0.15 | top 0.29 N@d5,e4c3,d5e7,c3e2 [1-P 2+Q 3-Q]; top 0.15 e1g1,c8f5,N@d5,e7e6 [1-P]; top 0.38 d3e4,P@b2,e1g1,b2a1q [0+N 3-R]; top 0.13 P@h6,g7h6,e3h6,P@b2 [1-P 2+P]
+        move ('B@b7', 'pass') reason world_switch main_nodes 330141 depth 13 | own: move ('B@b7', 'pass') reason kept_main main_nodes 275523 depth 13 | errs []
+    Ablack hears Bwhite, 2 plies since, another reply (N@a3):
+        told: talk=own_reply mover=partner depth=8 mate=0 worlds: none=0.44 +Q=0.40 +P-P=0.16 | top 0.47 e7d8,P@f2,e1f1 [0+Q]; top 0.18 f5f6,P@d2,f3d2,e4f6 [2+P 3-P]; top 0.14 P@f6,P@f2,e3f2,e4f6 [2+P 3-P]; top 0.06 N@d5,e4c3,f5f6,c3d5 [1-P 3-N]
+        own:  talk=own_none mover=partner depth=8 mate=0 worlds: none=0.44 +Q=0.40 +P-P=0.16 | top 0.47 e7d8,P@f2,e1f1 [0+Q]; top 0.18 f5f6,P@d2,f3d2,e4f6 [2+P 3-P]; top 0.14 P@f6,P@f2,e3f2,e4f6 [2+P 3-P]; top 0.06 N@d5,e4c3,f5f6,c3d5 [1-P 3-N]
+        move ('N@h4', 'pass') reason kept_main main_nodes 266976 depth 14 | own: move ('N@h4', 'pass') reason kept_main main_nodes 266976 depth 14 | errs []
+35 72 Ablack ('g7f6', 'pass') ('g7f6', '-619', 'kept_main', '490036', '13') | off: IDENTICAL | minimal, nothing heard: IDENTICAL errs []
+    says: v1 n=36 at=35 d=13 score=-619 mate=0 hands=RBNN/QNP lines 4:g7f6,B@d5,c4d5,e4d5,N@h5,g3g4 3:g7f6,R@g7,P@f7,N@d5,c4d5,e4d5 2:g7f6,R@g7,e7d8,B@e2,c4e2,N@f7 1:g7f6,R@g7,P@f7,B@e2,N@h5,e2c4
+    own forecast: talk=own_none mover=opponent depth=7 mate=0 worlds: none=0.42 +P-R=0.30 -P=0.17 +P+P-R=0.10 | top 0.46 N@c4,d2e2,g1a1,f3c6 [2-R 3+P]; top 0.13 N@f1,d2e2,g1h2,P@d7 [2-P]; top 0.21 g1a1,f3c6,P@d7,c6g2 [0-R 1+P 3+P]; top 0.07 g1f1,P@d7,f6d7,f3c6 [2-P 3+P]
+35 72 Bblack ('pass', 'N@c4') ('N@c4', '986', 'kept_main', '490012', '12') | off: IDENTICAL | minimal, nothing heard: IDENTICAL errs []
+    says: v1 n=38 at=37 d=11 score=976 mate=0 hands=NPP/NP lines 3:N@c4,d2e2,g1a1,f3c6,P@d7,c6g2 2:N@c4,d2e2,g1a1,f3g2,c4e3,g2c6
+    own forecast: talk=own_none mover=opponent depth=9 mate=0 worlds: none=0.28 +B-B-N=0.36 -B=0.29 +B-B=0.07 | top 0.72 g7f6,N@d5,c4d5,e4d5 [0-B 2-N 3+B]; top 0.13 e7f7,B@e2,c4e2,d1e2 [2-B 3+B]; top 0.11 e7f6,B@e2,c4e2,d1e2 [0-B 2-B 3+B]; top 0.04 e7f8,R@d8,N@e8,f6g7 [3+P]
+    Bwhite hears Ablack, 0 plies since: not on turn
+    Bwhite hears Ablack, 1 ply since: not on turn
+    Bwhite hears Ablack, 2 plies since, the reply expected: not on turn
+    Bwhite hears Ablack, 2 plies since, another reply (B@a3): not on turn
+    Awhite hears Bblack, 0 plies since: not on turn
+    Awhite hears Bblack, 1 ply since: not on turn
+    Awhite hears Bblack, 2 plies since, the reply expected: not on turn
+    Awhite hears Bblack, 2 plies since, another reply (d2d3): not on turn
+22 139 Awhite ('pass', 'pass') ('pass', None, None, '0', None) | off: IDENTICAL | minimal, nothing heard: IDENTICAL errs []
+    says: None
+    own forecast: no forecast
+22 139 Bblack ('pass', 'h7g6') ('h7g6', '-1925', 'no_arrivals', '490088', '12') | off: IDENTICAL | minimal, nothing heard: IDENTICAL errs []
+    says: v1 n=68 at=67 d=12 score=-1925 mate=0 hands=NNNPP/R lines 4:h7g6,e2g2,g6f7,N@g6,e5d6,N@e5 2:h7g6,f1g1,g6f6,e2g4,b2a1,f4e5 1:h7g6,f1g1,g6f6,e2h5,b2a1
+    own forecast: talk=None mover=partner depth=0 mate=0 worlds: none=1.00 | 
+    Awhite hears Bblack, 0 plies since:
+        told: no forecast
+        own:  no forecast
+        move ('pass', 'pass') reason None main_nodes 0 depth None | own: move ('pass', 'pass') reason None main_nodes 0 depth None | errs []
+    Awhite hears Bblack, 1 ply since:
+        told: no forecast
+        own:  no forecast
+        move ('pass', 'pass') reason None main_nodes 0 depth None | own: move ('pass', 'pass') reason None main_nodes 0 depth None | errs []
+    Awhite hears Bblack, 2 plies since, the reply expected:
+        told: no forecast
+        own:  no forecast
+        move ('pass', 'pass') reason None main_nodes 0 depth None | own: move ('pass', 'pass') reason None main_nodes 0 depth None | errs []
+    Awhite hears Bblack, 2 plies since, another reply (N@a3):
+        told: no forecast
+        own:  no forecast
+        move ('pass', 'pass') reason None main_nodes 0 depth None | own: move ('pass', 'pass') reason None main_nodes 0 depth None | errs []
+16 83 Awhite ('f2e2', 'pass') ('f2e2', '1150', 'kept_main', '490033', '14') | off: IDENTICAL | minimal, nothing heard: IDENTICAL errs []
+    says: v1 n=43 at=42 d=14 score=1150 mate=0 hands=QQBNP/RP lines 4:f2e2,e7c5,B@f2,c5c2,f2e3,P@c4 6:f2e2,e7c5,B@f2,e5e4,d2e4,c5c2
+    own forecast: talk=own_none mover=partner depth=8 mate=0 worlds: none=0.44 +B+P=0.27 +P=0.19 +P-B=0.10 | top 0.54 f8g7,P@f6,c6b5,e2e3 [0+P 2+B]; top 0.20 N@e3,d1d2,f8g7,g1g2 [1-P 2+P 3-B]; top 0.13 b6f2,g7f8q,h8f8,P@f6 [0+P 1-B 2+P]; top 0.11 h8g8,g7f8q,g8f8,P@f6 [1-B 2+P]
+16 83 Bblack ('pass', 'f8g7') ('f8g7', '1654', 'kept_main', '490036', '15') | off: IDENTICAL | minimal, nothing heard: IDENTICAL errs []
+    says: v1 n=42 at=41 d=15 score=1654 mate=0 hands=P/QN lines 7:f8g7,P@f6,b6f2,b5c4,h8e8,c4f7 2:f8g7,P@f6,b6f2,f6g7,h8e8,g7g8n 1:f8g7,P@f6,b6f2,f6g7,h8e8
+    own forecast: talk=own_none mover=partner depth=8 mate=0 worlds: none=0.43 +Q-R-P=0.22 +N-P=0.19 +Q-P=0.16 | top 0.45 c5e7,e2g3,Q@e1,g3h1 [0+Q 1-P 3-R]; top 0.21 c5e3,e2g3,Q@e1,P@d4 [0+N 1-P]; top 0.25 f2e2,R@f2,e2f2,e7c5 [0+N 2+R 3-B]; top 0.05 Q@a3,e2g3,N@e2,g3e2 [1-P 3-N]
+    Bblack hears Awhite, 0 plies since:
+        told: talk=told mover=partner depth=14 mate=0 worlds: none=0.15 +N-B=0.65 +N-B-P=0.20 | told 0.40 f2e2,e7c5,B@f2,c5c2 [0+N 1-B 3-P]; told 0.60 f2e2,e7c5,B@f2,e5e4 [0+N 1-B]
+        own:  talk=own_none mover=partner depth=8 mate=0 worlds: none=0.43 +Q-R-P=0.22 +N-P=0.19 +Q-P=0.16 | top 0.45 c5e7,e2g3,Q@e1,g3h1 [0+Q 1-P 3-R]; top 0.21 c5e3,e2g3,Q@e1,P@d4 [0+N 1-P]; top 0.25 f2e2,R@f2,e2f2,e7c5 [0+N 2+R 3-B]; top 0.05 Q@a3,e2g3,N@e2,g3e2 [1-P 3-N]
+        move ('pass', 'f8g7') reason kept_main main_nodes 330245 depth 15 | own: move ('pass', 'f8g7') reason kept_main main_nodes 274446 depth 15 | errs []
+    Bblack hears Awhite, 1 ply since:
+        told: talk=told mover=opponent depth=14 mate=0 worlds: none=0.15 -B=0.35 +P-B=0.30 +N-B-P=0.20 | told 0.40 e7c5,B@f2,c5c2,f2e3 [0-B 2-P 3+N]; told 0.60 e7c5,B@f2,e5e4,d2e4 [0-B 3+P]
+        own:  talk=own_none mover=opponent depth=8 mate=0 worlds: none=0.53 -B=0.19 +N-B-P=0.16 +N-P=0.12 | top 0.17 R@f2,e2f2,e7c5,d2e4 [1+R 2-B]; top 0.32 e7c5,B@f2,c5c2,f2e3 [0-B 2-P 3+N]; top 0.24 e3c2,B@f2,c2d4,c5d4 [0-P 3+N]; top 0.05 d7h3,c5e7,h3g2,Q@a4 [0-P 1+Q 2-B]
+        move ('pass', 'f8g7') reason kept_main main_nodes 330220 depth 15 | own: move ('pass', 'f8g7') reason kept_main main_nodes 275353 depth 14 | errs []
+    Bblack hears Awhite, 2 plies since, the reply expected:
+        told: talk=told mover=partner depth=14 mate=0 worlds: none=0.36 +P-P=0.30 +N-P=0.20 -P=0.14 | told 0.40 B@f2,c5c2,f2e3,P@c4 [1-P 2+N]; told 0.60 B@f2,e5e4,d2e4,c5c2 [2+P 3-P]
+        own:  talk=own_none mover=partner depth=8 mate=0 worlds: none=0.73 +N-Q=0.17 -B=0.09 | top 0.35 Q@f2,h6h5,f2e3,c5e3 [2+N 3-Q]; top 0.27 B@f2,P@d4,Q@e4,e3f5 []; top 0.19 B@g1,P@d4,Q@e4,e3g2 [3-B]; top 0.18 Q@g1,P@d4,Q@e4,e3f5 []
+        move ('pass', 'f8g7') reason world_switch main_nodes 330369 depth 15 | own: move ('pass', 'b6f2') reason kept_main main_nodes 276927 depth 14 | errs []
+    Bblack hears Awhite, 2 plies since, another reply (P@a3):
+        told: talk=own_reply mover=partner depth=9 mate=0 worlds: none=0.34 +Q-B=0.36 +N-P=0.19 +Q-P=0.10 | top 0.42 c5e7,e3g2,e7c5,R@e3 [0+Q 1-B]; top 0.20 Q@c3,R@c6,c5e7,a3b2 [2+Q 3-P]; top 0.23 c5e3,a3b2,Q@c3,R@c6 [0+N 1-P]; top 0.07 N@f6,g7f6,c5e7,a3b2 [1-N 2+Q 3-P]
+        own:  talk=own_none mover=partner depth=9 mate=0 worlds: none=0.34 +Q-B=0.36 +N-P=0.19 +Q-P=0.10 | top 0.42 c5e7,e3g2,e7c5,R@e3 [0+Q 1-B]; top 0.20 Q@c3,R@c6,c5e7,a3b2 [2+Q 3-P]; top 0.23 c5e3,a3b2,Q@c3,R@c6 [0+N 1-P]; top 0.07 N@f6,g7f6,c5e7,a3b2 [1-N 2+Q 3-P]
+        move ('pass', 'N@e3') reason world_switch main_nodes 278054 depth 14 | own: move ('pass', 'N@e3') reason world_switch main_nodes 278054 depth 14 | errs []
+    Awhite hears Bblack, 0 plies since:
+        told: talk=told mover=partner depth=15 mate=0 worlds: none=0.15 +P+P=0.35 +P=0.35 +P+P-B=0.15 | told 0.70 f8g7,P@f6,b6f2,b5c4 [0+P 2+P]; told 0.20 f8g7,P@f6,b6f2,f6g7 [0+P 2+P 3-B]; told 0.10 f8g7,P@f6,b6f2,f6g7 [0+P 2+P 3-B]
+        own:  talk=own_none mover=partner depth=8 mate=0 worlds: none=0.44 +B+P=0.27 +P=0.19 +P-B=0.10 | top 0.54 f8g7,P@f6,c6b5,e2e3 [0+P 2+B]; top 0.20 N@e3,d1d2,f8g7,g1g2 [1-P 2+P 3-B]; top 0.13 b6f2,g7f8q,h8f8,P@f6 [0+P 1-B 2+P]; top 0.11 h8g8,g7f8q,g8f8,P@f6 [1-B 2+P]
+        move ('f2e2', 'pass') reason kept_main main_nodes 330108 depth 15 | own: move ('f2e2', 'pass') reason kept_main main_nodes 277492 depth 14 | errs []
+    Awhite hears Bblack, 1 ply since:
+        told: talk=told mover=opponent depth=15 mate=0 worlds: none=0.15 +P=0.70 +P-B=0.15 | told 0.70 P@f6,b6f2,b5c4,h8e8 [1+P]; told 0.20 P@f6,b6f2,f6g7,h8e8 [1+P 2-B]; told 0.10 P@f6,b6f2,f6g7,h8e8 [1+P 2-B]
+        own:  talk=own_none mover=opponent depth=8 mate=0 worlds: none=0.52 +P=0.22 +B=0.14 +B+P=0.12 | top 0.44 P@f6,h8e8,g5g6,e7g6 [3+P]; top 0.17 h2h4,c6b5,P@f6,b6f2 [1+B 3+P]; top 0.16 P@e3,c6b5,d1d2,N@e4 [1+B 2-P]; top 0.07 a3a4,c6b5,P@f6,b6f2 [1+B 3+P]
+        move ('f2e2', 'pass') reason kept_main main_nodes 330028 depth 15 | own: move ('f2e2', 'pass') reason kept_main main_nodes 267809 depth 15 | errs []
+    Awhite hears Bblack, 2 plies since, the reply expected:
+        told: talk=told mover=partner depth=15 mate=0 worlds: none=0.15 +P-P=0.35 +P-B=0.26 +P=0.24 | told 0.70 b6f2,b5c4,h8e8,c4f7 [0+P 3-P]; told 0.20 b6f2,f6g7,h8e8,g7g8n [0+P 1-B]; told 0.10 b6f2,f6g7,h8e8 [0+P 1-B]
+        own:  talk=own_none mover=partner depth=8 mate=0 worlds: none=0.45 +B+P-N-P=0.28 +P-P=0.20 +B-B=0.08 | top 0.14 d8c8,c3a4,c6b5,a4b6 [2+B 3-B]; top 0.06 d8d7,f6g7,h8d8,d1d2 [1-B 3-P]; top 0.06 N@e8,f6e7,d8c8,d1d2 [1-N 3-P]; top 0.06 Q@f8,c3a4,d8c8,f6e7 [3-N]
+        move ('f2e2', 'pass') reason kept_main main_nodes 330028 depth 15 | own: move ('f2e2', 'pass') reason kept_main main_nodes 277879 depth 15 | errs []
+    Awhite hears Bblack, 2 plies since, another reply (P@a2):
+        told: talk=own_reply mover=partner depth=9 mate=0 worlds: none=0.31 +B-P=0.37 +P-P=0.21 +B=0.10 | top 0.25 b6f2,d1d2,Q@f4,d2d1 [0+P 1-P]; top 0.27 d8c8,e2e3,c6b5,d1d2 [2+B 3-P]; top 0.30 c6b5,g5g6,d8c8,c3b5 [0+B 3-P]; top 0.19 N@g4,g5g6,c6b5,g6f7 [2+B 3-P]
+        own:  talk=own_none mover=partner depth=9 mate=0 worlds: none=0.31 +B-P=0.37 +P-P=0.21 +B=0.10 | top 0.25 b6f2,d1d2,Q@f4,d2d1 [0+P 1-P]; top 0.27 d8c8,e2e3,c6b5,d1d2 [2+B 3-P]; top 0.30 c6b5,g5g6,d8c8,c3b5 [0+B 3-P]; top 0.19 N@g4,g5g6,c6b5,g6f7 [2+B 3-P]
+        move ('f2e2', 'pass') reason kept_main main_nodes 281256 depth 15 | own: move ('f2e2', 'pass') reason kept_main main_nodes 281256 depth 15 | errs []
+identical: 20 different: 0
