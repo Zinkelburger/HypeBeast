@@ -57,6 +57,8 @@ struct StateInfo {
   Bitboard wallSquares;
   Bitboard gatesBB[COLOR_NB];
   int    hbFed;            // HypeBeast: cross-board value of captures since the search root
+  int    hbPhantomBase;    // HypeBeast: evaluation, for the side that dropped a phantom piece, of the position it dropped from
+  int    hbPly;            // HypeBeast: plies played, null moves included, since the position was set up
 
   // Not copied when making a move (will be recomputed anyhow)
   Key        key;
@@ -116,6 +118,30 @@ namespace HB {
   extern bool  FedActive;
   extern Color FedRoot;
   extern int   FedGain[COLOR_NB][PIECE_TYPE_NB];
+  // HypeBeast phantom pieces: while PhantomActive (searches of our own board)
+  // a side may once drop, with check, a piece it does not hold, of a type its
+  // partner could capture on the other board (PhantomAvail[c], a bit per
+  // piece type). It must then mate by checks alone. Such a mate is worth
+  // PhantomValue[pt] internal units and no more: the piece may never come.
+  extern bool  PhantomActive;
+  extern int   PhantomValue[PIECE_TYPE_NB];
+  extern int   PhantomAvail[COLOR_NB];
+  // HypeBeast: internal units taken off the evaluation for each point of
+  // hand material (P1 N3 B3 R5 Q9, at most 15 a side) the side to move holds
+  // more than its opponent. 0: off.
+  extern int   HandDiscount;
+  // HypeBeast: internal units taken off the evaluation for each square of a
+  // king's zone (its square and the eight around it) that the other side
+  // attacks, beyond two; the same is added for the opponent's king. 0: off.
+  extern int   KingDanger;
+  // HypeBeast timed arrivals: while ArriveActive (searches of one arrival
+  // world, whose root is set up from a FEN and so is ply 0) ArriveCount[c][pt]
+  // of the pt in c's hand have not arrived yet: they cannot be dropped
+  // before ply ArrivePly[c][pt]. ArriveLast is the largest ArrivePly.
+  extern bool  ArriveActive;
+  extern int   ArriveCount[COLOR_NB][PIECE_TYPE_NB];
+  extern int   ArrivePly[COLOR_NB][PIECE_TYPE_NB];
+  extern int   ArriveLast;
 }
 
 class Position {
@@ -320,6 +346,12 @@ public:
   // NNUE accumulator of the current state invalidated).
   void hb_add_to_hand(Piece pc);
   void hb_remove_from_hand(Piece pc);
+  // Has c dropped a piece it does not hold (a phantom)?
+  bool hb_debt(Color c) const {
+    return virtualPieces && (   count_in_hand(c, PAWN) < 0 || count_in_hand(c, KNIGHT) < 0
+                             || count_in_hand(c, BISHOP) < 0 || count_in_hand(c, ROOK) < 0
+                             || count_in_hand(c, QUEEN) < 0);
+  }
   // Running feed-price total from the side to move's point of view.
   int hb_fed() const { return sideToMove == HB::FedRoot ? st->hbFed : -st->hbFed; }
   // What capturing with m adds on the partner board, for the side to move.
@@ -1021,11 +1053,20 @@ inline Value Position::checkmate_value(int ply) const {
   if (two_boards() && var->checkmateValue < VALUE_ZERO)
   {
       Value virtualMaterial = VALUE_ZERO;
+      int phantom = 0;
       for (PieceSet ps = piece_types(); ps;)
       {
           PieceType pt = pop_lsb(ps);
           virtualMaterial += std::max(-count_in_hand(~sideToMove, pt), 0) * PieceValue[MG][pt];
+          if (count_in_hand(~sideToMove, pt) < 0)
+              phantom = std::max(phantom, HB::PhantomValue[pt]);
       }
+
+      // HypeBeast: a mate that needed a piece not in hand is worth what the
+      // position was worth when the piece was dropped, and a bonus on top
+      if (HB::PhantomActive && virtualMaterial > 0)
+          return Value(-std::clamp(st->hbPhantomBase + phantom,
+                                   int(VALUE_TB_LOSS_IN_MAX_PLY) + 1, int(VALUE_TB_WIN_IN_MAX_PLY) - 1));
 
       if (virtualMaterial > 0)
           return -VALUE_VIRTUAL_MATE + virtualMaterial / 20 + ply;
@@ -1399,8 +1440,13 @@ inline int Position::pawns_on_same_color_squares(Color c, Square s) const {
 }
 
 inline Key Position::key() const {
-  return st->rule50 < 14 ? st->key
-                         : st->key ^ make_key((st->rule50 - 14) / 8);
+  Key k = st->rule50 < 14 ? st->key
+                          : st->key ^ make_key((st->rule50 - 14) / 8);
+  // HypeBeast: while a piece has yet to arrive, the same position at
+  // another ply allows other drops, so it is another node
+  if (HB::ArriveActive && st->hbPly < HB::ArriveLast)
+      k ^= make_key(0x4842ULL * 64 + st->hbPly);
+  return k;
 }
 
 inline Key Position::pawn_key() const {
@@ -1598,7 +1644,14 @@ inline bool Position::bikjang() const {
 inline bool Position::allow_virtual_drop(Color c, PieceType pt) const {
   assert(two_boards());
   if (HB::FrozenHands)
-      return false;
+  {
+      if (!HB::PhantomActive || pt == KING || !(HB::PhantomAvail[c] & (1 << pt)) || checkers())
+          return false;
+      // One phantom piece a side, whatever its type
+      return    count_in_hand(c, PAWN) >= 0 && count_in_hand(c, KNIGHT) >= 0
+             && count_in_hand(c, BISHOP) >= 0 && count_in_hand(c, ROOK) >= 0
+             && count_in_hand(c, QUEEN) >= 0;
+  }
   // Do we allow a virtual drop?
   return pt != KING && (   count_in_hand(c, PAWN) >= -(pt == PAWN)
                         && count_in_hand(c, KNIGHT) >= -(pt == PAWN)
@@ -1671,6 +1724,9 @@ inline void Position::undrop_piece(Piece pc_hand, Square s) {
 }
 
 inline bool Position::can_drop(Color c, PieceType pt) const {
+  // HypeBeast: pieces that have not arrived yet are in the hand, but cannot be dropped
+  if (HB::ArriveActive && st->hbPly < HB::ArrivePly[c][pt])
+      return count_in_hand(c, pt) > HB::ArriveCount[c][pt];
   return variant()->freeDrops || count_in_hand(c, pt) > 0;
 }
 

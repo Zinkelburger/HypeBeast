@@ -27,6 +27,7 @@
 #include "misc.h"
 #include "movegen.h"
 #include "position.h"
+#include "evaluate.h"
 #include "thread.h"
 #include "tt.h"
 #include "uci.h"
@@ -41,6 +42,15 @@ namespace HB {
   bool  FedActive = false;
   Color FedRoot = WHITE;
   int   FedGain[COLOR_NB][PIECE_TYPE_NB] = {};
+  bool  PhantomActive = false;
+  int   PhantomValue[PIECE_TYPE_NB] = {};
+  int   PhantomAvail[COLOR_NB] = {};
+  int   HandDiscount = 0;
+  int   KingDanger = 0;
+  bool  ArriveActive = false;
+  int   ArriveCount[COLOR_NB][PIECE_TYPE_NB] = {};
+  int   ArrivePly[COLOR_NB][PIECE_TYPE_NB] = {};
+  int   ArriveLast = 0;
 }
 
 namespace Zobrist {
@@ -1609,10 +1619,17 @@ void Position::do_move(Move m, StateInfo& newSt, bool givesCheck) {
 #endif
   Key k = st->key ^ Zobrist::side;
 
+  // HypeBeast: a phantom drop remembers what its side had without it
+  // (never dropped while in check, so the evaluation exists)
+  int phantomBase = st->hbPhantomBase;
+  if (HB::PhantomActive && type_of(m) == DROP && virtual_drop(m))
+      phantomBase = Eval::evaluate(*this);
+
   // Copy some fields of the old state to our new StateInfo object except the
   // ones which are going to be recalculated from scratch anyway and then switch
   // our state pointer to point to the new (ready to be updated) state.
   std::memcpy(static_cast<void*>(&newSt), static_cast<void*>(st), offsetof(StateInfo, key));
+  newSt.hbPhantomBase = phantomBase;
   newSt.previous = st;
   st = &newSt;
   st->move = m;
@@ -1620,6 +1637,7 @@ void Position::do_move(Move m, StateInfo& newSt, bool givesCheck) {
   // Increment ply counters. In particular, rule50 will be reset to zero later on
   // in case of a capture or a pawn move.
   ++gamePly;
+  ++st->hbPly;
   ++st->rule50;
   ++st->pliesFromNull;
   if (st->countingLimit)
@@ -2391,6 +2409,7 @@ void Position::do_null_move(StateInfo& newSt) {
   prefetch(TT.first_entry(key()));
 
   ++st->rule50;
+  ++st->hbPly;
   st->pliesFromNull = 0;
 
   sideToMove = ~sideToMove;

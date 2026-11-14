@@ -233,6 +233,8 @@ void ThreadPool::start_thinking(Position& pos, StateListPtr& states,
       th->hbExactScore = -VALUE_INFINITE;
       th->hbExactPV.clear();
       th->hbLines.clear();
+      th->hbDepthScores.clear();
+      th->hbDepthPVs.clear();
       th->hbAlpha = -VALUE_INFINITE;
       th->hbBeta = VALUE_INFINITE;
       th->rootMoves = rootMoves;

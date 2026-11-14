@@ -123,6 +123,8 @@ struct HBSearchResult {
   Depth completedDepth = 0;
   Value exactScore = -VALUE_INFINITE;   // score of the last completed iteration
   std::vector<Move> exactPV;            // PV of the last completed iteration
+  std::vector<Value> depthScores;       // exact score of every completed iteration, by depth
+  std::vector<std::vector<Move>> depthPVs; // and its best line (empty where none)
   int   selDepth = 0;
   uint64_t nodes = 0;
   // Exact (move, score) of every MultiPV line of the last completed iteration

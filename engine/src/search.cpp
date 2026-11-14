@@ -320,6 +320,8 @@ void MainThread::search() {
       Search::HBResult.completedDepth = bestThread->completedDepth;
       Search::HBResult.exactScore = bestThread->hbExactScore;
       Search::HBResult.exactPV = bestThread->hbExactPV;
+      Search::HBResult.depthScores = bestThread->hbDepthScores;
+      Search::HBResult.depthPVs = bestThread->hbDepthPVs;
       Search::HBResult.selDepth = rm.selDepth;
       Search::HBResult.nodes = Threads.nodes_searched();
       Search::HBResult.lines = bestThread->hbLines;
@@ -533,7 +535,13 @@ void Thread::search() {
       {
           completedDepth = rootDepth;
           hbExactScore = rootMoves[0].score;
+          if (hbDepthScores.size() <= size_t(rootDepth))
+              hbDepthScores.resize(size_t(rootDepth) + 1, VALUE_NONE);
+          hbDepthScores[rootDepth] = rootMoves[0].score;
           hbExactPV = rootMoves[0].pv;
+          if (hbDepthPVs.size() <= size_t(rootDepth))
+              hbDepthPVs.resize(size_t(rootDepth) + 1);
+          hbDepthPVs[rootDepth] = rootMoves[0].pv;
           hbLines.clear();
           hbLinePVs.clear();
           for (size_t i = 0; i < multiPV; ++i)

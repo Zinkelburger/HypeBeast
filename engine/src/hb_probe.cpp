@@ -30,6 +30,7 @@ namespace {
 TranspositionTable ChildTT;   // the child worker's own table (swapped with TT)
 ChildWorker* Worker = nullptr;
 bool FedPlanned = false;      // use feed prices in main-pool searches of this go
+bool PhantomPlanned = false;  // allow phantom pieces in searches of our own board this go
 
 // RAII: install the child thread and table for the duration of one search.
 struct ChildScope {
@@ -61,6 +62,8 @@ void fill_result(ProbeResult& r, const Position& root, Depth targetDepth) {
   r.lines = R.completedDepth > 0 ? R.lines : std::vector<std::pair<Move, Value>>();
   r.linePvs = R.completedDepth > 0 ? R.linePVs : std::vector<std::vector<Move>>();
   r.rootOrder = R.rootOrder;
+  r.depthScores = R.depthScores;
+  r.depthPvs = R.depthPVs;
 
   if (R.completedDepth > 0 && !R.exactPV.empty() && R.exactScore != -VALUE_INFINITE)
   {
@@ -142,6 +145,13 @@ int finite_cp(Value v) {
   if (v != VALUE_NONE && std::abs(v) >= VALUE_MATE_IN_MAX_PLY && std::abs(v) < VALUE_INFINITE)
       return v > 0 ? 2000 : -2000;
   return std::clamp(to_cp(v), -2000, 2000);
+}
+
+int mate_plies(Value v) {
+  if (v == VALUE_NONE || std::abs(v) >= VALUE_INFINITE || std::abs(v) < VALUE_MATE_IN_MAX_PLY)
+      return 0;
+  int plies = std::max(1, int(VALUE_MATE) - int(std::abs(v)));
+  return v > 0 ? plies : -plies;
 }
 
 std::string result_json(const ProbeResult& r) {
@@ -240,6 +250,7 @@ bool Budget::grant(Phase p, uint64_t& nodes, TimePoint& movetimeMs) const {
 }
 
 void set_feed_prices_planned(bool on) { FedPlanned = on; }
+void set_phantom_planned(bool on) { PhantomPlanned = on; }
 
 // ------------------------------------------------------------- main search
 
@@ -316,11 +327,13 @@ ProbeResult run_main_search(const TeamState& ts, int board, Budget& budget,
   // which lets a node-limited search overshoot by up to 1024 nodes).
   Threads.main()->callsCnt = 0;
   FedActive = FedPlanned;
+  PhantomActive = PhantomPlanned;
   Threads.start_thinking(const_cast<Position&>(actual), states, limits);
   if (Budget::cancelled())
       Threads.stop = true;
   Threads.main()->wait_for_search_finished();
   FedActive = false;
+  PhantomActive = false;
   Search::HBHook = saved;
 
   r.status = ProbeResult::OK;
@@ -383,6 +396,7 @@ ProbeResult ChildWorker::run(const ProbeRequest& req, Budget& budget, DecisionLo
       return done(ProbeResult::NO_BUDGET);
   if (req.maxNodes)
       nodes = nodes ? std::min(nodes, req.maxNodes) : req.maxNodes;
+  const TimePoint phaseMs = ms;     // what the phase still allows, from now
   if (req.maxTimeMs)
       ms = ms ? std::min(ms, req.maxTimeMs) : req.maxTimeMs;
   r.grantedNodes = nodes;
@@ -424,12 +438,23 @@ ProbeResult ChildWorker::run(const ProbeRequest& req, Budget& budget, DecisionLo
           limits.searchmoves.push_back(m);
       }
 
-      // Charge clearing time against the deadline as well
+      // Clearing counts against the phase's deadline. A probe's own cap is
+      // short (a few ms for a price probe) and is counted from here, or
+      // clearing alone would use it up on a busy machine.
       if (ms)
       {
           TimePoint spent = now() - t0;
-          if (ms <= spent)
-              return done(ProbeResult::NO_BUDGET);
+          if (!req.maxTimeMs || !phaseMs)
+          {
+              if (ms <= spent)
+                  return done(ProbeResult::NO_BUDGET);
+          }
+          else
+          {
+              if (phaseMs <= spent)
+                  return done(ProbeResult::NO_BUDGET);
+              ms = spent + std::min(phaseMs - spent, req.maxTimeMs);
+          }
       }
       limits.startTime = t0;
       limits.nodes = int64_t(nodes);
@@ -442,11 +467,23 @@ ProbeResult ChildWorker::run(const ProbeRequest& req, Budget& budget, DecisionLo
       Search::HBHook.multiPV = req.multiPV;
       Threads.main()->callsCnt = 0;
       FedActive = req.fed && FedPlanned;
+      PhantomActive = req.fed && PhantomPlanned;
+      ArriveLast = 0;
+      for (Color c : { WHITE, BLACK })
+          for (int t = 0; t < PIECE_TYPE_NB; ++t)
+          {
+              ArriveCount[c][t] = req.arriveCount[c][t];
+              ArrivePly[c][t] = req.arriveCount[c][t] > 0 ? req.arrivePly[c][t] : 0;
+              ArriveLast = std::max(ArriveLast, ArrivePly[c][t]);
+          }
+      ArriveActive = ArriveLast > 0;
       Threads.start_thinking(p, states, limits);
       if (Budget::cancelled())
           Threads.stop = true;
       Threads.main()->wait_for_search_finished();
       FedActive = false;
+      PhantomActive = false;
+      ArriveActive = false;
 
       r.status = ProbeResult::OK;
       fill_result(r, p, req.depth);

@@ -225,8 +225,11 @@ def run(worlds: bool) -> None:
 
     # 10. Stalling. Both legal moves allow the fed mate. Our clock beats the
     # white seat on B by 10 s, so we sit; black on A cannot drop until we move.
+    # White is also mated on A by force, so with HBHold on it would sit for
+    # that reason first: these check the stall rule on its own.
     AS = "6rk/8/8/8/8/8/7P/7K[] w - - 0 1"
     ahead = (60000, 60000, 50000, 60000)
+    e.setoption("HBHold", "false")
     e.send("ucinewgame")
     lines, rep, s, wake = coord(e, AS, BD, "go movetime 1000", ahead, adv=True)
     check(parse_bestmove(lines)[0] == "pass" and s.get("reason") == "stall_deny"
@@ -247,6 +250,142 @@ def run(worlds: bool) -> None:
     lines, rep, s, wake = coord(e, AS, BD, "go movetime 1000", ahead, adv=True)
     check(parse_bestmove(lines)[0] != "pass", "stall: HBStall=false never sits", f"{parse_bestmove(lines)}")
     e.setoption("HBStall", "true")
+    e.setoption("HBHold", "true")
+
+    # 12. Holding (v5). Every white move on A allows Qxd2 on B and Q@g2 mate,
+    # and white is not otherwise lost. With no move to play, sitting needs no
+    # clock lead; a lead is still needed when a poorer move is available.
+    AX = "6rk/8/8/8/8/8/PPP4P/N6K[] w - - 0 1"
+    level = (50000, 60000, 50000, 60000)
+    e.send("ucinewgame")
+    lines, rep, s, wake = coord(e, AX, BD, "go movetime 1000", level, adv=False)
+    check(parse_bestmove(lines)[0] == "pass" and s.get("reason") == "stall_deny",
+          "hold: every move loses to the fed mate, so sit without a clock lead",
+          f"{parse_bestmove(lines)} reason={s.get('reason')}")
+    e.setoption("HBHold", "false")
+    e.send("ucinewgame")
+    lines, rep, s, wake = coord(e, AX, BD, "go movetime 1000", level, adv=False)
+    check(parse_bestmove(lines)[0] != "pass", "hold: HBHold=false keeps the v4 lead rule",
+          f"{parse_bestmove(lines)} reason={s.get('reason')}")
+    e.setoption("HBHold", "true")
+
+    # Mated by force on A (rook against a bare king and pawn), nothing wrong
+    # on B: sit until the clock only covers the moves left, then play.
+    BQ = "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR[] w KQkq - 0 1"
+    even = (60000, 60000, 60000, 60000)
+    # The seat it races on the other board (same colour) is 30 s ahead: it
+    # can stop that board whatever we do, so sitting gives nothing away.
+    behind = (30000, 60000, 60000, 60000)
+    e.send("ucinewgame")
+    lines, rep, s, wake = coord(e, AS, BQ, "go movetime 1000", behind, adv=False)
+    floor = 30000 - int(wake[0].split("=")[1]) if wake else None
+    check(parse_bestmove(lines)[0] == "pass" and s.get("reason") == "hold_mated"
+          and floor is not None and 400 <= floor <= 15000,
+          "hold: a seat mated by force sits", f"{parse_bestmove(lines)} reason={s.get('reason')} wake={wake}")
+    lines, rep, s, wake = coord(e, AS, BQ, "go movetime 1000", (25000, 60000, 60000, 60000), adv=False)
+    check(parse_bestmove(lines)[0] == "pass" and s.get("wait") == "hold_continue" and s.get("main_nodes") == "0",
+          "hold: goes on without a new search while its board is the same",
+          f"wait={s.get('wait')} main_nodes={s.get('main_nodes')}")
+    # v6: level clocks. Sitting is what would give that seat its lead, so a
+    # seat with more than one move left plays the mate out. A lead of 2 s is
+    # gone after one move of ours, and this mate is longer than that.
+    for name, clocks in (("level clocks", even), ("2 s behind", (60000, 60000, 62000, 60000))):
+        e.send("ucinewgame")
+        lines, rep, s, wake = coord(e, AS, BQ, "go movetime 1000", clocks, adv=False)
+        check(parse_bestmove(lines)[0] != "pass" and s.get("reason") == "mated_play_on",
+              f"hold: {name}, a mated seat plays on", f"{parse_bestmove(lines)} reason={s.get('reason')}")
+    e.setoption("HBPlayOn", "false")
+    e.send("ucinewgame")
+    lines, rep, s, wake = coord(e, AS, BQ, "go movetime 1000", even, adv=False)
+    check(parse_bestmove(lines)[0] == "pass" and s.get("reason") == "hold_mated",
+          "hold: HBPlayOn=false sits as v5 did", f"{parse_bestmove(lines)} reason={s.get('reason')}")
+    e.setoption("HBPlayOn", "true")
+    e.send("ucinewgame")
+    lines, rep, s, wake = coord(e, AS, BQ, "go movetime 1000", (60000, 60000, 15000, 60000), adv=False)
+    check(parse_bestmove(lines)[0] == "pass" and s.get("reason") == "hold_mated",
+          "hold: sits when that seat is too short of time to wait", f"{parse_bestmove(lines)} reason={s.get('reason')}")
+    lines, rep, s, wake = coord(e, AS, BQ, "go movetime 1000", (3500, 60000, 60000, 60000), adv=False)
+    check(parse_bestmove(lines)[0] != "pass", "hold: plays when the clock is down to the floor",
+          f"{parse_bestmove(lines)} reason={s.get('reason')}")
+    e.send("ucinewgame")
+    lines, rep, s, wake = coord(e, AS.replace("[]", "[QQ]"), BQ, "go movetime 1000", even, adv=False)
+    check(parse_bestmove(lines)[0] != "pass", "hold: a seat that can defend plays",
+          f"{parse_bestmove(lines)} reason={s.get('reason')}")
+    e.setoption("HBHold", "false")
+    e.send("ucinewgame")
+    lines, rep, s, wake = coord(e, AS, BQ, "go movetime 1000", even, adv=False)
+    check(parse_bestmove(lines)[0] != "pass", "hold: HBHold=false never sits when mated",
+          f"{parse_bestmove(lines)} reason={s.get('reason')}")
+    e.setoption("HBHold", "true")
+
+    if worlds:
+        # Our partner (black on B) mates by force. We sit only ahead on the
+        # clock of the seat being mated (white on B), which may sit as well:
+        # until our partner has moved, or for as long as the mated seat sits.
+        AQ = "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR[] w KQkq - 0 1"
+        BP = "r5k1/8/8/8/8/8/5PPP/6K1[] b - - 0 1"       # partner to move
+        BO = "1r4k1/8/8/8/8/8/q5PP/7K[] w - - 0 1"       # the mated seat to move
+        lead = (60000, 60000, 50000, 60000)
+        e.send("ucinewgame")
+        lines, rep, s, wake = coord(e, AQ, BP, "go movetime 1000", lead, adv=True)
+        check(parse_bestmove(lines)[0] == "pass" and s.get("reason") == "hold_partner"
+              and wake == ["info string hb_wake_after_ms=3500"],
+              "hold: sits while the partner, on turn, mates", f"{parse_bestmove(lines)} reason={s.get('reason')} wake={wake}")
+        lines, rep, s, wake = coord(e, AQ, BP, "go movetime 1000", (58000, 60000, 50000, 60000), adv=True)
+        check(parse_bestmove(lines)[0] == "pass" and wake == ["info string hb_wake_after_ms=1500"]
+              and s.get("wait") == "hold_continue",
+              "hold: a wake with nothing moved keeps the booked wake", f"{wake} wait={s.get('wait')}")
+        lines, rep, s, wake = coord(e, AQ, BP, "go movetime 1000", (56500, 60000, 50000, 60000), adv=True)
+        check(parse_bestmove(lines)[0] != "pass", "hold: plays when the partner has not moved in time",
+              f"{parse_bestmove(lines)} reason={s.get('reason')}")
+        lines, rep, s, wake = coord(e, AQ, BP, "go movetime 1000", (56000, 60000, 50000, 60000), adv=True)
+        check(parse_bestmove(lines)[0] != "pass", "hold: one wait for a partner on turn per turn of ours",
+              f"{parse_bestmove(lines)} reason={s.get('reason')}")
+        e.send("ucinewgame")
+        lines, rep, s, wake = coord(e, AQ, BO, "go movetime 1000", lead, adv=True)
+        check(parse_bestmove(lines)[0] == "pass" and s.get("reason") == "hold_partner" and not wake,
+              "hold: out-sits the seat being mated, with no wake", f"{parse_bestmove(lines)} reason={s.get('reason')} wake={wake}")
+        lines, rep, s, wake = coord(e, AQ, BO, "go movetime 1000", (30000, 60000, 20000, 60000), adv=True)
+        check(parse_bestmove(lines)[0] == "pass" and s.get("wait") == "hold_continue",
+              "hold: sits on while the mated seat sits", f"{parse_bestmove(lines)} wait={s.get('wait')}")
+        for name, fb, clocks in (("level clocks, partner to move", BP, even),
+                                 ("level clocks, mated seat to move", BO, even),
+                                 ("behind on the clock", BO, (50000, 60000, 60000, 60000)),
+                                 ("short clock", BO, (15000, 60000, 5000, 60000))):
+            e.send("ucinewgame")
+            lines, rep, s, wake = coord(e, AQ, fb, "go movetime 1000", clocks, adv=False)
+            check(parse_bestmove(lines)[0] != "pass", f"hold: no wait for the partner's mate: {name}",
+                  f"{parse_bestmove(lines)} reason={s.get('reason')}")
+        e.send("ucinewgame")
+        lines, rep, s, wake = coord(e, "rnb1kbnr/pppp1ppp/8/4p3/7q/5P2/PPPPP1PP/RNBQKBNR[] w KQkq - 0 1", BO,
+                                    "go movetime 1000", lead, adv=True)
+        check(parse_bestmove(lines)[0] != "pass", "hold: a seat in check does not wait for the partner",
+              f"{parse_bestmove(lines)} reason={s.get('reason')}")
+        e.send("ucinewgame")
+        lines, rep, s, wake = coord(e, "6k1/5ppp/8/8/8/8/8/R5K1[] w - - 0 1", BO, "go movetime 1000", lead, adv=True)
+        check(parse_bestmove(lines)[0] == "a1a8", "hold: a seat with its own mate plays it",
+              f"{parse_bestmove(lines)} reason={s.get('reason')}")
+
+        # Rescue. Our partner (black on B) is mated next move by the two rooks
+        # and sits. A knight in its hand guards b8; a pawn only delays the
+        # mate, which the depth-5 feed price does not see.
+        BR = "7k/R7/8/8/8/8/5PPP/1R4K1[] b - - 0 1"
+        e.send("ucinewgame")
+        lines, rep, s, wake = coord(e, AQ, BR, "go nodes 500000", even, adv=False)
+        rescue = dict(kv.split(":") for kv in s.get("rescue", "").split(",") if ":" in kv)
+        check(s.get("partner_held") == "-2" and rescue.get("P") == "0" and int(rescue.get("N", "0")) > 0,
+              "rescue: only a piece that ends the sitting partner's mate is priced",
+              f"held={s.get('partner_held')} rescue={s.get('rescue')}")
+        e.setoption("HBRescue", "false")
+        e.send("ucinewgame")
+        lines, rep, s, wake = coord(e, AQ, BR, "go nodes 500000", even, adv=False)
+        check(s.get("partner_held") == "-2" and "rescue" not in s, "rescue: HBRescue=false keeps the feed prices",
+              f"held={s.get('partner_held')} rescue={s.get('rescue')}")
+        e.setoption("HBRescue", "true")
+        e.send("ucinewgame")
+        lines, rep, s, wake = coord(e, AQ, BQ.replace(" w ", " b "), "go nodes 500000", even, adv=False)
+        check("partner_held" not in s and "rescue" not in s, "rescue: nothing to do for a partner that is not mated",
+              f"held={s.get('partner_held')} rescue={s.get('rescue')}")
 
     # 11. Shared convention: our partner (black on B) can take a knight that
     # gives us N@f7 mate. It takes it, and we wait for it, with no clock lead.
@@ -267,8 +406,11 @@ def run(worlds: bool) -> None:
 
     # 7. Voluntary waiting. A: white (us) in check by Rh1, king can move,
     # a queen would block. B: black (partner) to move, only Kxg7 (a queen).
+    # A bare king against a rook is also mated by force, which a deep enough
+    # search sees: HBHold is off so that only the waiting rule is checked.
     AW = "7k/8/8/8/8/8/8/K6r[] w - - 0 1"
     BW = "7k/6Q1/8/8/8/8/8/K7[] b - - 0 1"
+    e.setoption("HBHold", "false")
     good = (60000, 50000, 50000, 60000)                 # white team up on time
     lines, rep, s, wake = coord(e, AW, BW, "go movetime 300", good, adv=True)
     check(parse_bestmove(lines) == ("pass", "pass") and wake == ["info string hb_wake_after_ms=3000"]
@@ -388,9 +530,78 @@ def worlds_cases(A2: str, B2: str, B3: str) -> None:
     e.close()
 
 
+def v6_cases() -> None:
+    """v6: price probes deepened to a node cap, and the referee's repetition draw."""
+    print("--- v6")
+    # From v5c against v4, game 4. White's queen on board A is trapped in a
+    # trade (Qxg4 hxg4, or ...Qxf3). On board B a queen in White's hand mates
+    # in four (Bxg7+ Kxg7, Q@h6+ ...), which a depth-3 probe does not see.
+    AQ = "3r1r1k/p1p2ppp/2pb3n/4p3/4Ppq1/2PP1Q2/PP2NPP1/R1B2RK1[RNbp] w - - 0 23"
+    BQ4 = "r2q1r1k/pppb1ppB/2n2b1B/5p1Q/3P2p1/3B4/P1P2nPP/R3N1K1[NPPPn] w - - 0 23"
+    clocks = (84000, 84000, 87000, 81000)
+
+    def prices_of(lines):
+        for l in lines:
+            if l.startswith("info string hb_prices "):
+                return json.loads(l[len("info string hb_prices "):])
+        return None
+
+    e = Engine(options={"Seat": "Awhite", "Team": "white"})
+    lines, rep, s, wake = coord(e, AQ, BQ4, "go nodes 500000", clocks)
+    pr = prices_of(lines)
+    check(pr is not None and pr["theirs"]["Q"] == 1500 and int(s.get("price_depth", "0")) > 3,
+          "deep prices: the queen that mates in four on the partner board is priced as a mate",
+          f"theirs={pr and pr['theirs']} depth={s.get('price_depth')}")
+    check(parse_bestmove(lines)[0] != "pass", "feed hold is off by default", f"{parse_bestmove(lines)} reason={s.get('reason')}")
+    e.setoption("HBPriceShare", "0")
+    e.send("ucinewgame")
+    lines, rep, s, wake = coord(e, AQ, BQ4, "go nodes 500000", clocks)
+    pr = prices_of(lines)
+    check(pr is not None and pr["theirs"]["Q"] < 1500 and "price_depth" not in s,
+          "deep prices: HBPriceShare=0 gives the depth-3 probes, which miss it",
+          f"theirs={pr and pr['theirs']}")
+    e.setoption("HBPriceShare", "10")
+    e.setoption("HBFeedHold", "true")
+    e.send("ucinewgame")
+    lines, rep, s, wake = coord(e, AQ, BQ4, "go nodes 500000", clocks)
+    check(parse_bestmove(lines)[0] == "pass" and s.get("reason") == "hold_feed" and s.get("hold_piece") == "Q"
+          and wake == ["info string hb_wake_after_ms=7000"],
+          "feed hold: HBFeedHold=true sits for 7 s instead of trading the queen",
+          f"{parse_bestmove(lines)} reason={s.get('reason')} wake={wake}")
+    e.close()
+
+    # From v6b against v5e, game 57. Black mates on board A, and Kxf7 would
+    # bring the same board position for the third time: the referee's draw,
+    # which the search cannot see because it counts the hands.
+    G57 = ("1e2e4 1e7e5 2d2d4 2g8f6 1d2d4 1b8c6 2g1f3 1g1f3 2a7a6 1e5d4 1f1c4 2b1c3 2b7b5 1f8c5 2c1g5 1c2c3 "
+           "1g8f6 2b5b4 1c4f7 2c3a4 1e8f7 2c8b7 1e1g1 2a4c5 1d7d5 2b7c6 2e2e4 1c3d4 2e7e6 1d5e4 2P@e5 1d1b3 "
+           "2f8c5 1f7f8 2d4c5 1f3e5 2f6e4 1B@d5 2g5d8 1e5c6 2e8g8 1b7c6 2N@e7 1d4c5 2g8h8 1d5b3 2B@f6 1a2b3 "
+           "2B@h6 1d8e8 2f1d3 1c1f4 2P@e3 1f6d5 2e1g1 2e3f2 1f4g3 2g1h1 1h7h5 2P@e2 1b1c3 2Q@h4 1d5c3 2e2d1q "
+           "1b2c3 2a1d1 1P@f3 2B@f4 1g2f3 2N@e2 1e4f3 2f8d8 1N@h4 2e2f4 2P@g5 1B@g2 2h4h6 1B@d6 2N@g3 1f8g8 "
+           "2h2g3 1P@f7 1e8f7 1Q@d8 1B@e8 1d8e8 2e4g3 1f7e8 2h1h2 2g3f1 1P@f7 2d1f1 1e8f7 1R@d8 2B@g1 2h2h3 "
+           "1N@f8 1d8f8 2g5g4 1f7f8 2h3h4 2N@f5 1P@f7 2e7f5")
+
+    def play57(options):
+        e = Engine(options={"Seat": "Ablack", "Team": "black", **options})
+        e.setoption("Clocks", "7900,70472,75262,3110")
+        e.setoption("TimeAdvantage", "false")
+        e.send("position startpos moves " + G57)
+        lines = e.go("go nodes 500000")
+        e.close()
+        return parse_bestmove(lines)[0], summary_fields(lines)
+
+    move, s = play57({})
+    check(move != "f8f7" and move != "pass" and s.get("draw_avoided") == "1",
+          "draws: the mating seat does not repeat the position a third time",
+          f"{move} draw_moves={s.get('draw_moves')}")
+    move, s = play57({"HBDraws": "false"})
+    check(move == "f8f7" and "draw_avoided" not in s, "draws: HBDraws=false plays into the repetition", move)
+
+
 def main() -> int:
     run(False)
     run(True)
+    v6_cases()
     print("RESULT", "PASS" if not failures else f"FAIL ({failures})")
     return 0 if not failures else 1
 

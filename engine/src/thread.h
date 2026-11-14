@@ -79,7 +79,9 @@ public:
 
   // HypeBeast bookkeeping (written only, never read by the search itself)
   Value hbExactScore;
+  std::vector<Value> hbDepthScores;          // exact score of every completed iteration, by depth
   std::vector<Move> hbExactPV;
+  std::vector<std::vector<Move>> hbDepthPVs; // best line of every completed iteration, by depth (empty where none)
   std::vector<std::pair<Move, Value>> hbLines;
   std::vector<std::vector<Move>> hbLinePVs;   // PV of every hbLines entry
   Value hbAlpha, hbBeta;

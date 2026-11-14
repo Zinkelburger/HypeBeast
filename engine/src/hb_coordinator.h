@@ -74,6 +74,38 @@ namespace Coef {
   constexpr double WorldScoreShare       = 0.40;  // of the budget left: scoring candidates in arrival worlds
   constexpr int    WorldSwitchMargin     = 25;    // cp-equivalent lead needed to replace the main choice
   constexpr size_t WorldHashMb           = 16;
+
+  // Holding (v5): sitting on purpose. While we sit nothing can be captured or
+  // dropped on our board, and the other board plays on.
+  constexpr int    HoldMoveMs            = 2500;  // the most one move costs on the clock
+  constexpr int    HoldFloorMinMs        = 400;   // a mated seat moves again at this clock, or
+  constexpr int    HoldFloorMaxMs        = 15000; // earlier, to have time for the moves it has left
+  constexpr int    HoldUntimedMs         = 3000;  // margin when no wake is booked for the floor
+  constexpr int    PartnerHoldMs         = 3500;  // wait for a partner on turn to play its mating move
+  constexpr int    PartnerHoldReserveMs  = 20000; // no such wait below this clock,
+  constexpr int    PartnerHoldLeadMs     = 2000;  // or without this lead over the seat being mated
+  constexpr int    PartnerLostCp         = 1000;  // a partner this far down that does not move is sitting
+  constexpr int    PlayOnMarginMs        = 300;   // v6: a mated seat plays on; margin under PartnerHoldLeadMs,
+  constexpr int    PlayOnLeadPerMoveMs   = 2000;  // and what one move of ours takes off a waiting seat's lead
+
+  // Feed hold (v6): our best line loses a piece that mates on the partner
+  // board. While we sit it cannot be captured, and our partner has about two
+  // moves to defend; then we move whatever it did.
+  constexpr int    FeedHoldMs            = 7000;
+  constexpr int    FeedHoldReserveMs     = 20000; // no such sit below this clock
+
+  // The referee's draw (v6): a board position seen three times, hands not
+  // counted. Taken when our board is lost by this much, refused when it is
+  // not worse than DrawAvoidCp.
+  constexpr int    DrawSeekCp            = 800;
+  constexpr int    DrawAvoidCp           = -200;
+
+  // Rescue (v5): what a piece does for a partner that sits mated by force,
+  // from a search of its board with that piece in hand. With 2 or 4 plies
+  // past the mate's length, 21 and 9 of about 120 pieces that left it mated
+  // looked like rescues; with 6, none (43 sittings of v5c against v4).
+  constexpr double RescueShare           = 0.03;  // of the go, for each of the five types, once per sitting
+  constexpr int    RescueExtraPlies      = 6;
 }
 
 /// What the controller returns for one 'go'.
@@ -102,6 +134,7 @@ struct CoordinatorContext {
   Budget& budget;          // shared go budget; use phases DISCOVERY/PROBES/COMPARE
   ChildWorker& worker;     // sequential child searches: worker.run(req, budget, &log)
   DecisionLog& log;
+  bool mainCached = false; // main is the search of this same position from the go before
 };
 
 /// What one more piece in hand is worth on one board, to each colour, for
@@ -138,8 +171,20 @@ void prepare_forecast(CoordinatorContext& ctx);
 
 /// Choose our move after the main search. Returns a legal move of
 /// ctx.actual.pos(ctx.board), or pass=true to stall. Uses the rest of the
-/// go budget.
+/// go budget. With ctx.mainCached it only decides whether to keep holding:
+/// reason "need_main" asks for a fresh main search and a second call.
 Decision coordinate(CoordinatorContext& ctx);
+
+/// While a seat waits for its partner's mate its own board does not change,
+/// so the main search of the go before still stands. Returns that result, or
+/// nullptr when a fresh search is needed.
+const ProbeResult* held_main(const CoordinatorContext& ctx);
+void remember_main(const CoordinatorContext& ctx, const ProbeResult& r);
+
+/// The arena books one wake per turn of ours: the first one asked for. Call
+/// this with every wake a sit asks for, so that a later hold knows whether
+/// it will be woken when its clock reaches its floor.
+void note_wake_request(const CoordinatorContext& ctx, int wakeAfterMs);
 
 /// Voluntary waiting (PLAN.md 5.4), evaluated before any search when our
 /// seat is on turn with legal moves. Returns pass=true (with wakeAfterMs)

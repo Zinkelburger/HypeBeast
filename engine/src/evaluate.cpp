@@ -1638,6 +1638,11 @@ Value Eval::evaluate(const Position& pos) {
 
   Value v;
 
+  // HypeBeast: a side that has dropped a phantom piece must mate by checks,
+  // so it may not rest on the evaluation of a board with that piece on it
+  if (HB::PhantomActive && pos.hb_debt(pos.side_to_move()))
+      return VALUE_TB_LOSS_IN_MAX_PLY + 1;
+
   if (!Eval::useNNUE || !pos.nnue_applicable())
       v = Evaluation<NO_TRACE>(pos).value();
   else
@@ -1686,6 +1691,35 @@ Value Eval::evaluate(const Position& pos) {
   // HypeBeast: what the captures since the search root are worth across boards
   if (HB::FedActive)
       v += pos.hb_fed();
+
+  // HypeBeast: pieces still in hand have counted for less than the net says
+  if (HB::HandDiscount)
+  {
+      auto points = [&](Color c) {
+          return std::min(  pos.count_in_hand(c, PAWN) + 3 * pos.count_in_hand(c, KNIGHT)
+                          + 3 * pos.count_in_hand(c, BISHOP) + 5 * pos.count_in_hand(c, ROOK)
+                          + 9 * pos.count_in_hand(c, QUEEN), 15);
+      };
+      v -= HB::HandDiscount * (points(pos.side_to_move()) - points(~pos.side_to_move()));
+  }
+
+  // HypeBeast: a king whose zone is attacked on three squares or more falls
+  // more often than the net's score says (AUTOPSY2.md: +9 points of collapse
+  // risk net of the score, on both sides of a match).
+  if (HB::KingDanger)
+  {
+      auto excess = [&](Color c) {
+          if (!pos.count<KING>(c))
+              return 0;
+          Square ksq = pos.square<KING>(c);
+          Bitboard zone = attacks_bb(c, KING, ksq, pos.pieces()) | ksq;
+          int n = 0;
+          while (zone)
+              n += bool(pos.attackers_to(pop_lsb(zone), ~c));
+          return std::max(0, n - 2);
+      };
+      v -= HB::KingDanger * (excess(pos.side_to_move()) - excess(~pos.side_to_move()));
+  }
 
   // Guarantee evaluation does not hit the virtual win/loss range
   if (pos.two_boards() && std::abs(v) >= VALUE_VIRTUAL_MATE_IN_MAX_PLY)

@@ -225,11 +225,45 @@ void init(OptionsMap& o) {
   o["HBFeedPrices"]          << Option(true);   // price captures across boards in the main search
   o["HBStall"]               << Option(true);   // sit to deny a verified fed mate when the clocks allow
   o["HBWorlds"]              << Option(true);   // forecast arrivals and choose over weighted worlds (v4)
+  o["HBHold"]                << Option(true);   // sit when mated by force or while the partner mates (v5)
+  o["HBRescue"]              << Option(true);   // price the piece that ends a sitting partner's mate (v5)
+  o["HBWorldSwitch"]         << Option(true);   // false: keep the forecast, spend the worlds' share on the main search
+  o["HBPlayOn"]              << Option(true);   // a mated seat plays the mate out while its sitting is what would stop the other board (v6)
+  o["HBDraws"]               << Option(true);   // take the referee's repetition draw when lost, refuse it otherwise (v6)
+  o["HBFeedHold"]            << Option(false);  // sit while the best line loses a piece that mates on the partner board (v6: measured, no gain)
+  o["HBPhantom"]             << Option(0, 0, 3000);      // cp: what a mate needing one pawn not in hand adds to the position it starts from (other types by how often they arrive); 0: off
+  o["HBPhantomOwn"]          << Option(true);            // false: only the opponent's phantom mates count
+  o["HBHandDiscount"]        << Option(0, -200, 200);    // cp taken off for each point of hand material held more than the opponent (negative: added); 0: off
+  o["HBTeamScore"]           << Option(0, 0, 200);       // %: share of the partner's told score added to ours in every world's winning chance; 0: off (needs HBTell=plan or minimal)
+  o["HBKingDanger"]          << Option(0, 0, 500);       // cp taken off for each square of the king's zone the opponent attacks beyond two, and added for the opponent's king; 0: off (AUTOPSY2.md)
+  o["HBWorldMaxGap"]         << Option(4000, 0, 4000);   // cp: a world switch may cost this much when nothing arrives, unless an arrival mates the main choice; 4000: no limit (v6)
+  o["HBPriceScale"]          << Option(50, 0, 200);      // %: share of a piece's measured gain on the partner board that is its price
+  o["HBPriceCap"]            << Option(500, 0, 2000);    // cp: the most a price can be, mates apart
+  o["HBPriceKeepTable"]      << Option(false);           // keep the main hash table between moves while every feed price is zero (v7d)
+  o["HBPriceShare"]          << Option(10, 0, 100);      // permille of the go for each partner-board price probe; 0: depth 3 (v5)
+  o["HBMainShare"]           << Option(66, 30, 90);      // %: prices, forecast and main search together (58 through v5)
   o["HBForecastTemp"]        << Option(250, 10, 2000);   // cp: how sharply better partner-board lines are favoured
   o["HBForecastTrust"]       << Option(85, 0, 100);      // %: share of a forecast arrival that is believed
   o["HBForecastTrustLate"]   << Option(0, 0, 100);       // %: the same for captures 3-4 plies into a line (0: v4 as measured)
+  o["HBMaxWorlds"]           << Option(4, 2, 8);         // worlds chosen over, "nothing arrives" included (4 through v7d)
+  o["HBForecastScan"]        << Option(4, 2, 8);         // plies of each forecast line read for late captures (4 through v7d)
+  o["HBArrivalTiming"]       << Option(0, 0, 2);         // in a world, a forecast piece cannot be dropped before the move it could arrive on: 0 off (through v7e), 1 captures 3+ plies into a line, 2 every capture
   o["HBForecastPrice"]       << Option(50, 0, 200);      // %: how much of a capture's value on our board counts there
   o["HBWinScale"]            << Option(1000, 50, 4000);   // cp per logistic unit of winning chances
+  o["HBTell"]                << Option("off");            // partner talk (PARTNER_TALK.md): off, alarm, worth, table, minimal or plan ('+' joins); what this seat tells and how it hears
+  o["HBPartnerTell"]         << Option("none");           // the partner's last hb_tell text, set by the arena; none: nothing heard
+  o["HBPlanTrust"]           << Option(60, 0, 100);       // %: weight of the partner's told line among our own forecast lines (HBTell=plan)
+  o["HBMateGuard"]           << Option(false);            // price only a piece of ours whose loss mates our partner, probing only the types that can be taken now, a queen, and last go's (v8h); overrides HBFeedPrices
+  o["HBMateGuardFloor"]      << Option(-100000, -100000, 100000);  // cp: HBMateGuard prices nothing while the partner's board, in our team's view, is below this; -100000: always priced
+  o["HBMateGuardQuiet"]      << Option(false);            // HBMateGuard with no mate priced: the go without prices in every respect but the probes (v8i)
+  o["HBTellFloor"]           << Option(-100000, -100000, 100000);  // cp: a message is not honoured while the teller's own board (base=) is below this (v8i)
+  o["HBTellMin"]             << Option(0, 0, 5000);       // cp: a told cost or worth below this is not priced; mates always are (v8i)
+  o["HBTellLossesOnly"]      << Option(false);            // honour only what the teller loses when its opponent gets a piece (v8i)
+  o["HBTellRoot"]            << Option(false);            // a heard message prices nothing in the search; what each candidate hands over (its capture: the teller's +T, the expected reply's capture: its -T) is added to its value at the choice (v8j)
+  o["HBTellRootSide"]        << Option(0, 0, 2);          // HBTellRoot counts 0: both, 1: only what our capture gives the partner, 2: only what the expected reply costs it (v8k)
+  o["HBTellRootMaxCost"]     << Option(-1, -1, 4000);     // cp: HBTellRoot counts a candidate's feed only if it costs at most this much when nothing arrives (main L minus its L); -1: no limit (v8k, the user's tie-break)
+  o["HBPlanTrustLate"]       << Option(-1, -1, 100);     // %: HBForecastTrustLate for the partner's told line; -1: the same as for our own lines
+  o["HBTableShare"]          << Option(5, 0, 50);         // permille of the go for each table search (HBTell=table); 0: none
   o["Seat"]                  << Option("Awhite", {"Awhite", "Ablack", "Bwhite", "Bblack"});
   o["Clocks"]                << Option("");
   // Arena/HiveMind names and semantics: Team white = White on A + Black on B

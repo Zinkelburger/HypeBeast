@@ -96,6 +96,10 @@ struct ProbeRequest {
   bool clear = true;                      // clear child TT and heuristics first
   size_t multiPV = 0;                     // >1: every line gets an exact score and a PV
   bool fed = false;                       // apply this go's feed prices (our board only)
+  // Timed arrivals: arriveCount[c][pt] of the pt in c's hand have not arrived
+  // and cannot be dropped before ply arrivePly[c][pt] of this search (the root is ply 0).
+  int arriveCount[COLOR_NB][PIECE_TYPE_NB] = {};
+  int arrivePly[COLOR_NB][PIECE_TYPE_NB] = {};
   std::string tag;                        // label for the decision log
 };
 
@@ -114,6 +118,11 @@ struct ProbeResult {
   Value score = VALUE_NONE;   // exact score of the last completed iteration
   Move move = MOVE_NONE;      // best move of the last completed iteration
   std::vector<Move> pv;
+  // Exact score of every completed iteration, indexed by depth (VALUE_NONE
+  // where none): two searches are compared at a depth both completed.
+  std::vector<Value> depthScores;
+  // Best line of every completed iteration, by depth (empty where none).
+  std::vector<std::vector<Move>> depthPvs;
 
   // Raw final state, as upstream would report it (may come from a partial
   // iteration; finalBound tells whether finalScore is a bound).
@@ -147,6 +156,8 @@ const char* status_name(ProbeResult::Status s);
 int to_cp(Value v);
 // Clipped to [-2000, 2000]; local mate reports map to the endpoints.
 int finite_cp(Value v);
+// Plies to a forced mate: >0 the side to move mates, <0 it is mated, 0 none seen.
+int mate_plies(Value v);
 std::string result_json(const ProbeResult& r);
 
 /// Main search on our actual board (thread pool, main TT, actual history).
@@ -160,6 +171,7 @@ ProbeResult run_main_search(const TeamState& ts, int board, Budget& budget,
 
 /// Feed prices apply to main-pool searches of the current go only.
 void set_feed_prices_planned(bool on);
+void set_phantom_planned(bool on);
 
 /// Sequential, reusable, single-threaded child worker. It owns a separate
 /// MainThread (own heuristics) and a separate TT, swapped in only for the

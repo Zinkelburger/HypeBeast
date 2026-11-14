@@ -163,6 +163,33 @@ void controller(Search::LimitsType limits) {
   Move fallback = deterministic_fallback(pos);
   bool coordination = bool(Options["Coordination"]);
 
+  // Phantom pieces and the hand discount, for every search of this go
+  {
+      int phantom = int(Options["HBPhantom"]);
+      // Share of turns in which each type reached a hand, in 200 games of
+      // v6h against v5e: P 12.2%, N 7.7%, B 6.5%, R 2.4%, Q 3.1%
+      static const int PerMille[PIECE_TYPE_NB] = {0, 1000, 630, 530, 200, 250};
+      const Position& other = ts.pos(1 - sc.board);
+      for (Color c : {WHITE, BLACK})
+      {
+          PhantomAvail[c] = 0;
+          for (Bitboard b = other.pieces(c); b;)
+          {
+              Square s = pop_lsb(b);
+              PieceType pt = other.is_promoted(s) ? PAWN : type_of(other.piece_on(s));
+              if (pt >= PAWN && pt <= QUEEN)
+                  PhantomAvail[c] |= 1 << pt;
+          }
+      }
+      for (PieceType pt : {PAWN, KNIGHT, BISHOP, ROOK, QUEEN})
+          PhantomValue[pt] = phantom * PerMille[pt] / 1000 * PawnValueEg / 100;
+      if (!bool(Options["HBPhantomOwn"]))
+          PhantomAvail[sc.us] = 0;
+      set_phantom_planned(phantom > 0);
+      HandDiscount = int(Options["HBHandDiscount"]) * PawnValueEg / 100;
+      KingDanger = int(Options["HBKingDanger"]) * PawnValueEg / 100;
+  }
+
   Decision d;
   ProbeResult mainResult;
   bool searched = false;
@@ -187,7 +214,10 @@ void controller(Search::LimitsType limits) {
                                   verdict, none, fallback, budget, ChildWorker::get(), log};
           Decision w = consider_voluntary_wait(wctx);
           if (w.pass)
+          {
               d = w;
+              note_wake_request(wctx, w.wakeAfterMs);
+          }
       }
   }
   if (onTurn && legal.size() && !d.pass)
@@ -206,12 +236,30 @@ void controller(Search::LimitsType limits) {
           prepare_feed_prices(ctx);
           prepare_forecast(ctx);
       }
-      mainResult = run_main_search(ts, sc.board, budget, Phase::MAIN, &log);
+      // A seat waiting for its partner's mate asks only whether to go on
+      // waiting: its own board is the one it searched the go before.
+      const ProbeResult* held = coordination ? held_main(ctx) : nullptr;
+      if (held)
+      {
+          mainResult = *held;
+          ctx.mainCached = true;
+          d = coordinate(ctx);
+          ctx.mainCached = false;
+      }
+      if (!held || !d.pass)
+      {
+          mainResult = run_main_search(ts, sc.board, budget, Phase::MAIN, &log);
+          if (coordination)
+              remember_main(ctx, mainResult);
+      }
       searched = true;
       if (coordination)
       {
-          d = coordinate(ctx);
+          if (!held || !d.pass)
+              d = coordinate(ctx);
           set_feed_prices_planned(false);
+          if (d.pass)
+              note_wake_request(ctx, d.wakeAfterMs);
       }
       else if (mainResult.status == ProbeResult::OK && mainResult.finalMove != MOVE_NONE)
           d.move = mainResult.finalMove, d.reason = "main";
