@@ -18,13 +18,17 @@ one-board search for the opponent (bin/hypebeast-v3, Coordination=false) says
 whether it is a forced mate.
 
   loss_set.py build --out FILE.json [--side contender] [--earlier] RESULTS.jsonl [...]
-  loss_set.py run FILE.json --bin PATH [--movetime 1000] [--workers 3] [--option K=V ...]
+  loss_set.py run FILE.json --bin PATH [--movetime 1000 | --nodes N] [--workers 3] [--option K=V ...]
+
+HB_JUDGE overrides the judge binary (any build whose Coordination=false
+search is the plain one-board search, e.g. bin/hypebeast-base).
 """
 
 from __future__ import annotations
 
 import argparse
 import json
+import os
 import sys
 from concurrent.futures import ProcessPoolExecutor
 from pathlib import Path
@@ -33,7 +37,7 @@ import chess
 
 from hbutil import ROOT, Bughouse, Engine, parse_bestmove
 
-JUDGE = ROOT / "bin/hypebeast-v3"
+JUDGE = Path(os.environ.get("HB_JUDGE", ROOT / "bin/hypebeast-v3"))
 JUDGE_NODES = 400_000
 
 SEAT = {(0, chess.WHITE): "Awhite", (0, chess.BLACK): "Ablack",
@@ -158,7 +162,7 @@ def build(args) -> int:
 
 
 def run_item(job) -> dict:
-    item, binary, movetime, options = job
+    item, binary, movetime, nodes, options = job
     engine = Engine(Path(binary), options=options)
     try:
         engine.setoption("Seat", item["seat"])
@@ -166,7 +170,8 @@ def run_item(job) -> dict:
         engine.setoption("Clocks", ",".join(map(str, item["clocks"])))
         engine.setoption("TimeAdvantage", "true" if item["advantage"] else "false")
         engine.send("position startpos moves " + " ".join(item["prefix"]))
-        lines = engine.go(f"go movetime {movetime}", timeout=60 + movetime / 1000)
+        go = f"go nodes {nodes}" if nodes else f"go movetime {movetime}"
+        lines = engine.go(go, timeout=60 + movetime / 1000 + nodes / 50_000)
     finally:
         engine.close()
     board = 0 if item["seat"][0] == "A" else 1
@@ -189,7 +194,7 @@ def run_item(job) -> dict:
 def run(args) -> int:
     items = [i for i in json.loads(args.items.read_text()) if i["avoiding_moves"]]
     options = dict(o.split("=", 1) for o in args.option)
-    jobs = [(i, str(args.bin.resolve()), args.movetime, options) for i in items]
+    jobs = [(i, str(args.bin.resolve()), args.movetime, args.nodes, options) for i in items]
     with ProcessPoolExecutor(args.workers) as pool:
         rows = list(pool.map(run_item, jobs))
     counts: dict = {}
@@ -198,7 +203,8 @@ def run(args) -> int:
         if args.verbose:
             print(f"  game {row['game']:3} ply {row['ply']:3} {row['seat']:6} game move {row['played']:6} "
                   f"-> {row['move']:6} {row['verdict']:8} ({row['reason']}) arrived={''.join(item['arrived_between']) or '-'}")
-    print(f"{args.bin.name} movetime={args.movetime} {options or ''}: {len(rows)} items: "
+    budget = f"nodes={args.nodes}" if args.nodes else f"movetime={args.movetime}"
+    print(f"{args.bin.name} {budget} {options or ''}: {len(rows)} items: "
           + ", ".join(f"{k}={v}" for k, v in sorted(counts.items())))
     return 0
 
@@ -216,6 +222,7 @@ def main() -> int:
     r.add_argument("items", type=Path)
     r.add_argument("--bin", type=Path, required=True)
     r.add_argument("--movetime", type=int, default=1000)
+    r.add_argument("--nodes", type=int, default=0, help="search a node budget instead of movetime")
     r.add_argument("--workers", type=int, default=3)
     r.add_argument("--option", action="append", default=[])
     r.add_argument("--verbose", action="store_true")

@@ -37,10 +37,17 @@ using std::string;
 namespace Stockfish {
 
 namespace HB {
+  bool  TreeRep = false;
+  const std::unordered_map<Key, int>* RepHist = nullptr;
+  Key   RepRootKey = 0;
+  uint64_t RepFilter[64] = {};
+  int   CastlePenalty = 0;
   bool  FrozenHands = false;
   bool  FedActive = false;
   Color FedRoot = WHITE;
   int   FedGain[COLOR_NB][PIECE_TYPE_NB] = {};
+  bool  FeedCastleFix = false;
+  bool  FeedEpFix = false;
 }
 
 namespace Zobrist {
@@ -50,10 +57,23 @@ namespace Zobrist {
   Key castling[CASTLING_RIGHT_NB];
   Key side, noPawns;
   Key inHand[PIECE_NB][SQUARE_NB];
+  Key inHandNeg[PIECE_NB][8];   // HypeBeast: hand counts -1..-7 (virtual pieces of the chance search)
+  Key emptyHands;               // XOR of inHand[pc][0] over every piece: the hand part of empty hands
   Key checks[COLOR_NB][CHECKS_NB];
   Key wall[SQUARE_NB];
   Key endgame[EG_EVAL_NB];
 }
+
+namespace {
+
+// Hash key of n pieces pc in hand. Under HypeBeast a negative count (a
+// virtual piece of the chance search) has its own key; otherwise upstream's
+// indexing is kept unchanged.
+inline Key hand_key(Piece pc, int n) {
+  return n >= 0 || !HB::FrozenHands ? Zobrist::inHand[pc][n] : Zobrist::inHandNeg[pc][std::min(-n, 7)];
+}
+
+} // namespace
 
 
 /// operator<<(Position) returns an ASCII representation of the position
@@ -93,7 +113,7 @@ std::ostream& operator<<(std::ostream& os, const Position& pos) {
           {
               os << " [";
               for (PieceType pt = KING; pt >= PAWN; --pt)
-                  os << std::string(pos.count_in_hand(c, pt), pos.piece_to_char()[make_piece(c, pt)]);
+                  os << std::string(std::max(0, pos.count_in_hand(c, pt)), pos.piece_to_char()[make_piece(c, pt)]);
               os << "]";
           }
       }
@@ -190,6 +210,17 @@ void Position::init() {
 
   for (Square s = SQ_A1; s <= SQ_MAX; ++s)
       Zobrist::wall[s] = rng.rand<Key>();
+
+  Zobrist::emptyHands = 0;
+  for (Color c : {WHITE, BLACK})
+      for (PieceType pt = PAWN; pt <= KING; ++pt)
+          Zobrist::emptyHands ^= Zobrist::inHand[make_piece(c, pt)][0];
+
+  // Own generator, so that no existing key changes
+  PRNG rngNeg(0x48424e6567ULL);
+  for (int pc = 0; pc < PIECE_NB; ++pc)
+      for (int n = 0; n < 8; ++n)
+          Zobrist::inHandNeg[pc][n] = rngNeg.rand<Key>();
 
   for (int i = NO_EG_EVAL; i < EG_EVAL_NB; ++i)
       Zobrist::endgame[i] = rng.rand<Key>();
@@ -629,10 +660,10 @@ void Position::hb_add_to_hand(Piece pc) {
   Color c = color_of(pc);
   PieceType pt = type_of(pc);
   if (piece_drops() || seirawan_gating())
-      st->key ^= Zobrist::inHand[pc][pieceCountInHand[c][pt]];
+      st->key ^= hand_key(pc, pieceCountInHand[c][pt]);
   add_to_hand(pc);
   if (piece_drops() || seirawan_gating())
-      st->key ^= Zobrist::inHand[pc][pieceCountInHand[c][pt]];
+      st->key ^= hand_key(pc, pieceCountInHand[c][pt]);
   st->accumulator.computed[WHITE] = st->accumulator.computed[BLACK] = false;
 }
 
@@ -643,11 +674,34 @@ void Position::hb_remove_from_hand(Piece pc) {
   PieceType pt = type_of(pc);
   assert(pieceCountInHand[c][pt] > 0);
   if (piece_drops() || seirawan_gating())
-      st->key ^= Zobrist::inHand[pc][pieceCountInHand[c][pt]];
+      st->key ^= hand_key(pc, pieceCountInHand[c][pt]);
   remove_from_hand(pc);
   if (piece_drops() || seirawan_gating())
-      st->key ^= Zobrist::inHand[pc][pieceCountInHand[c][pt]];
+      st->key ^= hand_key(pc, pieceCountInHand[c][pt]);
   st->accumulator.computed[WHITE] = st->accumulator.computed[BLACK] = false;
+}
+
+
+/// Position::board_key() is the hash key without the hand part: the key of
+/// the referee's repetition rule, which ignores the pockets. Same XOR as
+/// set_state(), with the empty-hand constant for the types not in hand.
+
+Key Position::board_key() const {
+
+  Key k = st->key;
+  if (piece_drops() || seirawan_gating())
+  {
+      k ^= Zobrist::emptyHands;
+      for (Color c : {WHITE, BLACK})
+          for (PieceSet ps = piece_types(); ps;)
+          {
+              PieceType pt = pop_lsb(ps);
+              int n = pieceCountInHand[c][pt];
+              if (n)
+                  k ^= hand_key(make_piece(c, pt), n) ^ Zobrist::inHand[make_piece(c, pt)][0];
+          }
+  }
+  return k;
 }
 
 
@@ -699,7 +753,7 @@ void Position::set_state(StateInfo* si) const {
               si->materialKey ^= Zobrist::psq[pc][cnt];
 
           if (piece_drops() || seirawan_gating())
-              si->key ^= Zobrist::inHand[pc][pieceCountInHand[c][pt]];
+              si->key ^= hand_key(pc, pieceCountInHand[c][pt]);
       }
 
   if (check_counting())
@@ -1645,7 +1699,7 @@ void Position::do_move(Move m, StateInfo& newSt, bool givesCheck) {
   st->capturedpromoted = is_promoted(to);
   st->unpromotedCapturedPiece = captured ? unpromoted_piece_on(to) : NO_PIECE;
   st->pass = is_pass(m);
-  if (HB::FedActive && captured)
+  if (HB::FedActive && captured && !(HB::FeedCastleFix && type_of(m) == CASTLING))
       st->hbFed += (us == HB::FedRoot ? 1 : -1) * HB::FedGain[us][st->capturedpromoted ? PAWN : type_of(captured)];
 
   assert(color_of(pc) == us);
@@ -1736,8 +1790,8 @@ void Position::do_move(Move m, StateInfo& newSt, bool givesCheck) {
   {
       Piece pc_hand = make_piece(us, in_hand_piece_type(m));
       k ^=  Zobrist::psq[pc][to]
-          ^ Zobrist::inHand[pc_hand][pieceCountInHand[color_of(pc_hand)][type_of(pc_hand)] - 1]
-          ^ Zobrist::inHand[pc_hand][pieceCountInHand[color_of(pc_hand)][type_of(pc_hand)]];
+          ^ hand_key(pc_hand, pieceCountInHand[color_of(pc_hand)][type_of(pc_hand)] - 1)
+          ^ hand_key(pc_hand, pieceCountInHand[color_of(pc_hand)][type_of(pc_hand)]);
 
       // Reset rule 50 counter for irreversible drops
       st->rule50 = 0;
@@ -1824,7 +1878,9 @@ void Position::do_move(Move m, StateInfo& newSt, bool givesCheck) {
       {
           // Add drop piece
           dp.piece[0] = pc;
-          dp.handPiece[0] = make_piece(us, in_hand_piece_type(m));
+          // A virtual drop (HypeBeast chance: nothing in hand) removes no hand
+          // feature; hand features count max(0, count), as a refresh does.
+          dp.handPiece[0] = pieceCountInHand[us][in_hand_piece_type(m)] > 0 ? make_piece(us, in_hand_piece_type(m)) : NO_PIECE;
           dp.handCount[0] = pieceCountInHand[us][in_hand_piece_type(m)];
           dp.from[0] = SQ_NONE;
           dp.to[0] = to;
@@ -2439,8 +2495,8 @@ Key Position::key_after(Move m) const {
   if (type_of(m) == DROP)
   {
       Piece pc_hand = make_piece(sideToMove, in_hand_piece_type(m));
-      return k ^ Zobrist::psq[pc][to] ^ Zobrist::inHand[pc_hand][pieceCountInHand[color_of(pc_hand)][type_of(pc_hand)]]
-            ^ Zobrist::inHand[pc_hand][pieceCountInHand[color_of(pc_hand)][type_of(pc_hand)] - 1];
+      return k ^ Zobrist::psq[pc][to] ^ hand_key(pc_hand, pieceCountInHand[color_of(pc_hand)][type_of(pc_hand)])
+            ^ hand_key(pc_hand, pieceCountInHand[color_of(pc_hand)][type_of(pc_hand)] - 1);
   }
 
   return k ^ Zobrist::psq[pc][to] ^ Zobrist::psq[pc][from];
@@ -2523,12 +2579,14 @@ Value Position::blast_see(Move m) const {
 /// SEE value of move is greater or equal to the given threshold. We'll use an
 /// algorithm similar to alpha-beta pruning with a null window.
 
-bool Position::see_ge(Move m, Value threshold) const {
+bool Position::see_ge(Move m, Value threshold, bool epAware) const {
 
   assert(is_ok(m));
 
   // Only deal with normal moves, assume others pass a simple SEE
-  if (type_of(m) != NORMAL && type_of(m) != DROP && type_of(m) != PIECE_PROMOTION)
+  // (HypeBeast epAware: en passant too, the pawn taken off its own square)
+  const bool ep = epAware && type_of(m) == EN_PASSANT;
+  if (type_of(m) != NORMAL && type_of(m) != DROP && type_of(m) != PIECE_PROMOTION && !ep)
       return VALUE_ZERO >= threshold;
 
   Square from = from_sq(m), to = to_sq(m);
@@ -2556,7 +2614,7 @@ bool Position::see_ge(Move m, Value threshold) const {
       || count<CLOBBER_PIECE>() == count<ALL_PIECES>())
       return VALUE_ZERO >= threshold;
 
-  int swap = PieceValue[MG][piece_on(to)] - threshold;
+  int swap = PieceValue[MG][piece_on(ep ? capture_square(to) : to)] - threshold;
   if (swap < 0)
       return false;
 
@@ -2568,7 +2626,8 @@ bool Position::see_ge(Move m, Value threshold) const {
   if (var->petrifyOnCaptureTypes & type_of(moved_piece(m)) && capture(m))
       return false;
 
-  Bitboard occupied = (type_of(m) != DROP ? pieces() ^ from : pieces()) ^ to;
+  Bitboard occupied = ep ? pieces() ^ from ^ capture_square(to)
+                         : (type_of(m) != DROP ? pieces() ^ from : pieces()) ^ to;
   Color stm = color_of(moved_piece(m));
   Bitboard attackers = attackers_to(to, occupied);
   Bitboard stmAttackers, bb;
@@ -3014,8 +3073,9 @@ bool Position::is_immediate_game_end(Value& result, int ply) const {
       return true;
   }
 
-  // Failing to checkmate with virtual pieces is a loss
-  if (two_boards() && !checkers())
+  // Failing to checkmate with virtual pieces is a loss. Not under HypeBeast,
+  // whose virtual pieces are probability-weighted arrivals (chance search).
+  if (two_boards() && !checkers() && !HB::FrozenHands)
   {
       int virtualCount = 0;
       for (PieceSet ps = piece_types(); ps;)

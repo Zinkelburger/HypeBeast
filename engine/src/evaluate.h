@@ -47,6 +47,7 @@ namespace Eval {
 
     std::string trace(Position& pos);
     Value evaluate(const Position& pos, bool adjusted = false);
+    void hb_refresh(const Position& pos);
 
     void init();
     void verify();

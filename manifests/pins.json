@@ -21,19 +21,38 @@
     "nnue_embedding": "off (EvalFile required)"
   },
   "binaries": {
-    "bin/fsf-ref": "6ef2fbb6c358a38d7e60985fb787e9fde414d4dcca1279677f62e8300358a05c",
+    "bin/fsf-ref": "6ff36f0f2a2f29c308a784f5dc1aeecfe1cb5ae55db6f1cc9000749e06089a92",
     "bin/hypebeast": "20b7cec87b7e2a3d66061a86658c756c6985eb6b9ce414716e603a1c974ac21f",
+    "bin/hypebeast-base": "a3a6e653e4e917c566bb904999c7b8a31d73dd7095abd5bc925fb2e4c4e5d9ee",
+    "bin/hypebeast-chance": "fad3ac1381f4522cead2b0a070a638fdd2e3ceb6bd2d508094b91136f68b69d3",
+    "bin/hypebeast-chance10": "8e077207b21ee3fe2cda774802c8d7534ef4e394ddc284c48c561300e161e358",
+    "bin/hypebeast-chance11": "8a43d02f957dbd3942968859e943a2e9582f3a4357b2d2da1b0bae8bdca57c20",
+    "bin/hypebeast-chance12": "9cf348ade00d1fb4c8cc730e29877edc83064aaafc6036ba10fb34d754de609d",
+    "bin/hypebeast-chance13": "fbd8b68914c74a3cd909e06b8f2cf7961d9e9bcb058988a53bbe37ac1dfe105c",
+    "bin/hypebeast-chance2": "3d03c9f685b79c6ee3435b8803dcab079f1663c42efcd439e116109e686b1e2b",
+    "bin/hypebeast-chance3": "07c6ae26eb1905b0fed4f0c394a8d42d3fadd727ba9bc65994ae2b7f3c0d4570",
+    "bin/hypebeast-chance4": "1e89606c94e822bc04db1b831420379d04380fdd5ff5068934f5c1e3301ff7b0",
+    "bin/hypebeast-chance5": "19ad3ff813f6315190c323eaafa7c396dcf7977ea5c8fa2188748771c9cd3c9c",
+    "bin/hypebeast-chance6": "60c288ab760803305feab48dd7ec47c5591a44d6f435f851cada76d069af2f2a",
+    "bin/hypebeast-chance7": "89b6302e17cc575d21a91ea1a04c37e2fd426d5aa8c1d709850d6ad0d7ab51d7",
+    "bin/hypebeast-chance8": "5ed9e1c96ffd7aac16453e4445d90356876242022c362af029b8aa803c1cbbb4",
+    "bin/hypebeast-chance9": "39ac17dd34c375ead4b3cd5cf78b190b2bc26578767caf1b0f07d9fccc51edb3",
+    "bin/hypebeast-danger1": "5e8aca8b84d3ad75348325305af26e56052f790da7abf441e3a07a6cb8d6ace5",
     "bin/hypebeast-v2": "3f45ba2cbab395883989e380d8135646acc050d83666a6be92e6646032d9f63a",
     "bin/hypebeast-v3": "ca5cdcad403ce037132383cfacdee9b22269d44209cf8367c338c2929b4a97ef",
     "bin/hypebeast-v4": "20481d0df190dbfc8874ae15d1f9acb0c38f18db01059e7cb0211e17cc0b3868",
-    "bin/hypebeast-v4b": "e7b18fe8f3acdb5f256cb0b958973f8080107273c1d49d92e9dd7444617e39e2"
+    "bin/hypebeast-v4b": "e7b18fe8f3acdb5f256cb0b958973f8080107273c1d49d92e9dd7444617e39e2",
+    "bin/hypebeast-v5": "89b6302e17cc575d21a91ea1a04c37e2fd426d5aa8c1d709850d6ad0d7ab51d7",
+    "bin/hypebeast-v6": "37143888a8ebc0825668aa3c76e085c319586f4e57ded51d19ff2b13bde7d380"
   },
   "binary_notes": {
     "bin/hypebeast": "v1, frozen for the screen20 screening matches (engine commit c7c9f94)",
     "bin/hypebeast-v2": "v2 = v1 + exposure veto (engine commit 69dc856); tuned on debug.txt only",
     "bin/hypebeast-v3": "v3 = v2 + feed prices, exposure tiers, stalling, delivery-win waits (engine commit c8f5abd); tuned on debug.txt only",
     "bin/hypebeast-v4": "v4 = v3 + arrival forecast and weighted worlds (engine commit e9151b1, built before HBForecastTrustLate was added; same moves as that source in 12 of 12 fixed-node checks)",
-    "bin/hypebeast-v4b": "v4 with the HBForecastTrustLate option (default 0); played no match"
+    "bin/hypebeast-v4b": "v4 with the HBForecastTrustLate option (default 0); played no match",
+    "bin/hypebeast-v5": "v5 = v4 + chance inside the tree (stable, horizon, fitted arrival trust) and the referee draw policy on by default; feed pricing and tree repetition available but off (PLAN.md revision 10)",
+    "bin/hypebeast-v6": "v6 = v5 + HBFeedCastleFix on by default (castling earns no feed price); hold when mated with HBHoldRace, HBChanceCondition, HBChanceHold, HBFeedEpFix and the castle penalty available but off (PLAN.md revision 11)"
   },
   "net": {
     "file": "nets/bughouse-cd8cceab93fe.nnue",

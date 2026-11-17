@@ -136,6 +136,11 @@ namespace Stockfish::Eval::NNUE {
     return (bool)stream;
   }
 
+  // HypeBeast: refresh the current position's accumulator (see FeatureTransformer::hb_refresh)
+  void hb_refresh(const Position& pos) {
+    featureTransformer->hb_refresh(pos);
+  }
+
   // Evaluation function. Perform differential calculation.
   Value evaluate(const Position& pos, bool adjusted) {
 

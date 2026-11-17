@@ -21,6 +21,7 @@
 
 #include <cassert>
 #include <deque>
+#include <unordered_map>
 #include <memory> // For std::unique_ptr
 #include <string>
 #include <functional>
@@ -116,6 +117,24 @@ namespace HB {
   extern bool  FedActive;
   extern Color FedRoot;
   extern int   FedGain[COLOR_NB][PIECE_TYPE_NB];
+  // HBFeedCastleFix: castling (encoded as the king taking its own rook)
+  // earns no feed price. False keeps the old behaviour, which credits it.
+  extern bool  FeedCastleFix;
+  // HBFeedEpFix: quiescence prices en passant like any pawn capture (the
+  // pawn's board value and feed price, and an exchange test that sees the
+  // captured pawn). False keeps the old estimate, which gives it nothing.
+  extern bool  FeedEpFix;
+  // HBTreeRepetition: the referee's threefold of the board (pockets ignored)
+  // inside HypeBeast searches. RepHist counts the real game's board keys of
+  // the searched board (nullptr: none known); RepRootKey is the board key of
+  // the real current position, which RepHist already counts.
+  extern bool TreeRep;
+  extern const std::unordered_map<Key, int>* RepHist;
+  extern Key RepRootKey;
+  extern uint64_t RepFilter[64];   // 4096-bit filter of RepHist's keys, so most nodes skip the lookup
+  // HBCastlePenalty: internal value taken off a castling move at the root of
+  // HypeBeast searches of our own board (0: none).
+  extern int CastlePenalty;
 }
 
 class Position {
@@ -323,7 +342,13 @@ public:
   // Running feed-price total from the side to move's point of view.
   int hb_fed() const { return sideToMove == HB::FedRoot ? st->hbFed : -st->hbFed; }
   // What capturing with m adds on the partner board, for the side to move.
+  // Castling (the king taking its own rook) gains nothing with HBFeedCastleFix;
+  // en passant gains the pawn's price with HBFeedEpFix (else nothing, as before).
   int hb_fed_gain(Move m) const {
+    if (type_of(m) == CASTLING && HB::FeedCastleFix)
+        return 0;
+    if (type_of(m) == EN_PASSANT)
+        return HB::FeedEpFix ? HB::FedGain[sideToMove][PAWN] : 0;
     Square to = to_sq(m);
     Piece pc = piece_on(to);
     return pc == NO_PIECE ? 0 : HB::FedGain[sideToMove][is_promoted(to) ? PAWN : type_of(pc)];
@@ -333,10 +358,12 @@ public:
 
   // Static Exchange Evaluation
   Value blast_see(Move m) const;
-  bool see_ge(Move m, Value threshold = VALUE_ZERO) const;
+  // epAware (HBFeedEpFix in quiescence): en passant is exchanged like a normal pawn capture
+  bool see_ge(Move m, Value threshold = VALUE_ZERO, bool epAware = false) const;
 
   // Accessing hash keys
   Key key() const;
+  Key board_key() const;   // HypeBeast: the hash key without the hands (the referee's repetition key)
   Key key_after(Move m) const;
   Key material_key(EndgameEval e = EG_EVAL_CHESS) const;
   Key pawn_key() const;
@@ -622,7 +649,7 @@ inline bool Position::nnue_use_pockets() const {
 inline bool Position::nnue_applicable() const {
   // Do not use NNUE during setup phases (placement, sittuyin)
   return (!count_in_hand(ALL_PIECES) || nnue_use_pockets() || !must_drop())
-         && !virtualPieces
+         && (!virtualPieces || HB::FrozenHands)
          && (!nnue_king() || (count(WHITE, nnue_king()) == 1 && count(BLACK, nnue_king()) == 1));
 }
 
@@ -1017,8 +1044,9 @@ inline Value Position::checkmate_value(int ply) const {
       // Niol
       return VALUE_DRAW;
   }
-  // Checkmate using virtual pieces
-  if (two_boards() && var->checkmateValue < VALUE_ZERO)
+  // Checkmate using virtual pieces (not under HypeBeast: a mate is a mate,
+  // the arrival's probability is applied where the piece was dropped)
+  if (two_boards() && var->checkmateValue < VALUE_ZERO && !HB::FrozenHands)
   {
       Value virtualMaterial = VALUE_ZERO;
       for (PieceSet ps = piece_types(); ps;)

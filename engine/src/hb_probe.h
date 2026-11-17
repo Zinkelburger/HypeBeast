@@ -17,6 +17,7 @@
 #include <algorithm>
 #include <atomic>
 #include <string>
+#include <unordered_map>
 #include <vector>
 
 #include "search.h"
@@ -62,6 +63,12 @@ public:
   TimePoint share_ms(double f) const { return time_limited() ? std::max<TimePoint>(1, TimePoint(f * double(totalMs))) : 0; }
   void charge(uint64_t nodes) { usedNodes += nodes; }
   void set_slices(Slices s) { slices = s; }
+  // HBAvoidDraw: move up to f of the probe slice into the reserve and let one
+  // RESERVE-phase search use it (a root search without the drawing moves).
+  void open_reserve(double f) {
+      double take = std::min(f, slices.probes);
+      slices.probes -= take, slices.reserve += take, reserveOpen = true;
+  }
 
   uint64_t nodes_used() const { return usedNodes; }
   uint64_t total_nodes() const { return totalNodes; }
@@ -81,6 +88,7 @@ private:
   Search::LimitsType go;
   bool coord;
   Slices slices;
+  bool reserveOpen = false;
   uint64_t totalNodes = 0, usedNodes = 0;
   TimePoint totalMs = 0, start = 0;
 };
@@ -97,6 +105,12 @@ struct ProbeRequest {
   size_t multiPV = 0;                     // >1: every line gets an exact score and a PV
   bool fed = false;                       // apply this go's feed prices (our board only)
   std::string tag;                        // label for the decision log
+  // HBTreeRepetition: the real game's board-key counts of the board this FEN
+  // belongs to, and that board's current key (set_history()). nullptr: the
+  // search counts repetitions inside its own line only.
+  const std::unordered_map<Key, int>* repHist = nullptr;
+  Key repRoot = 0;
+  void set_history(const TeamState& ts, int board);
 };
 
 /// Result of a main or child search. Scores are internal Values from the

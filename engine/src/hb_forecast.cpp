@@ -226,6 +226,7 @@ Forecast make_forecast(CoordinatorContext& ctx) {
           l.move = UCI::move(py, r.lines[i].first);
           l.source = source;
           l.score = finite_cp(r.lines[i].second);
+          l.value = r.lines[i].second;
           l.arrival = read_line(py, r.linePvs[i], partner, l.pv, l.captures, l.later);
           f.lines.push_back(l);
       }
@@ -234,6 +235,7 @@ Forecast make_forecast(CoordinatorContext& ctx) {
   // ---- the partner board's best lines
   ProbeRequest req;
   req.fen = ctx.actual.fen(Y);
+  req.set_history(ctx.actual, Y);
   req.phase = Phase::DISCOVERY;
   req.clear = true;
   req.multiPV = Coef::ForecastLines;
@@ -305,6 +307,7 @@ Forecast make_forecast(CoordinatorContext& ctx) {
       for (const auto& mv : MoveList<LEGAL>(px))
           legalX.push_back(UCI::move(px, mv));
       ProbeRequest pr;
+      pr.set_history(ctx.actual, X);
       pr.phase = Phase::DISCOVERY;
       pr.depth = Coef::ForecastPriceDepth;
       pr.searchMoves = legalX;

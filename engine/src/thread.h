@@ -83,6 +83,10 @@ public:
   std::vector<std::pair<Move, Value>> hbLines;
   std::vector<std::vector<Move>> hbLinePVs;   // PV of every hbLines entry
   Value hbAlpha, hbBeta;
+  // HypeBeast chance statistics (see hb_chance.h), reset per search
+  uint64_t hbChancePasses, hbChanceDrops, hbChanceRaised, hbChanceCuts, hbChanceNodes;
+  uint64_t hbChanceVerify, hbChanceVerifyFail, hbChanceUnresolved, hbChanceVerifyNodes;
+  int hbChanceNest;
 };
 
 

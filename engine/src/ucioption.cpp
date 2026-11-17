@@ -225,6 +225,71 @@ void init(OptionsMap& o) {
   o["HBForecastTrustLate"]   << Option(0, 0, 100);       // %: the same for captures 3-4 plies into a line (0: v4 as measured)
   o["HBForecastPrice"]       << Option(50, 0, 200);      // %: how much of a capture's value on our board counts there
   o["HBWinScale"]            << Option(1000, 50, 4000);   // cp per logistic unit of winning chances
+  // Chance inside the tree: virtual drops of forecast arrivals in main-pool searches
+  o["HBChance"]              << Option(true);   // v5: on (main-pool searches, HypeBeast mode only)
+  // Arrival probabilities per receiver (Us: our partner captures for us; Them:
+  // their partner for our opponent) and per turn k (0: plies 1-2, 1: later):
+  //   k=0: p = floor0 + (1 - floor0) * min(1, trust0 * W01)
+  //   k=1: p = floor1 + (1 - floor1) * min(1, trust1 * W01 + late1 * W23)
+  // Trust/late in %, floors in basis points (1/100 of a %). Defaults (v5) are
+  // the fit on 5,130 self-play decisions (tests/arrival_rates.py); the first
+  // version used Trust 85, Late 25 and no floors for both receivers.
+  o["HBChanceTrustUs0"]      << Option(85, 0, 100);
+  o["HBChanceFloorUs0"]      << Option(100, 0, 10000);
+  o["HBChanceTrustUs1"]      << Option(95, 0, 100);
+  o["HBChanceLateUs1"]       << Option(45, 0, 100);
+  o["HBChanceFloorUs1"]      << Option(375, 0, 10000);
+  o["HBChanceTrustThem0"]    << Option(50, 0, 100);
+  o["HBChanceFloorThem0"]    << Option(0, 0, 10000);
+  o["HBChanceTrustThem1"]    << Option(90, 0, 100);
+  o["HBChanceLateThem1"]     << Option(30, 0, 100);
+  o["HBChanceFloorThem1"]    << Option(200, 0, 10000);
+  o["HBChanceHorizon"]       << Option(1, 0, 1);         // 1: a check and its evasion do not advance the chance ply
+  o["HBChanceStable"]        << Option(true);            // no singular extension where the mover may drop an arrival
+  o["HBChanceAspiration"]    << Option(false);           // root aspiration window as wide as the last swing of the value
+  o["HBAvoidDraw"]           << Option(true);            // not losing: avoid moves that draw or let the opponent draw (referee rules)
+  o["HBTreeRepetition"]      << Option(false);           // the referee's board threefold inside HypeBeast searches
+  o["HBSeekDraw"]            << Option(true);            // clearly losing: take an immediate draw if one exists
+  // Price of a piece handed to the opponent (feed prices). Defaults are the
+  // old rule. Nodes=10 Cap=2000 MatePrice=4500 Lost=50 passed 5/7 of
+  // tests/feed_set.py but lost in play (PLAN.md, revision 10), so they stay off.
+  o["HBFeedPriceNodes"]      << Option(0, 0, 100);       // per mille of the go budget per partner-board probe (0: depth-3 probes)
+  o["HBFeedPriceDiv"]        << Option(2, 1, 4);         // measured loss divided by this
+  o["HBFeedPriceCap"]        << Option(500, 0, 2000);    // cp cap of a non-mate price
+  o["HBFeedMatePrice"]       << Option(1500, 0, 9000);   // cp when the piece lets them mate our partner
+  o["HBFeedPriceLost"]       << Option(0, 0, 100);       // % of the piece's value when the partner already looks lost
+  // Round-8 coordinator rules (default off): sit when every move is mated on
+  // our board and the partner is still in the game; prefer the cheaper feed
+  // among near-equal candidates (cp window, needs a price gap of Margin cp);
+  // a root penalty on castling (cp).
+  o["HBHoldWhenMated"]       << Option(false);
+  // HBHoldRace (ms, 0 off): a hold must win the clock race. If both seats
+  // sit, our clock runs against the opposing seat on turn on the partner
+  // board (the diagonal), and our lead shrinks by every move our partner
+  // thinks over; HiveMind sits as soon as its team has the time advantage.
+  // So hold only when our partner has a forced mate (forecast) and our lead
+  // covers it: lead >= HBHoldRace + 2.5 s per partner move; end the hold at
+  // any wake where that no longer holds, and otherwise play the longest
+  // defence. A hold also needs a wake before its lead runs out while our
+  // partner is on turn (the arena gives one timer per board turn, shared
+  // with Stall and Wait, which then also respect it). Mates within
+  // HBHoldFreePlies plies need no partner mate, but the same guard: they sit
+  // with a lead, or with the lead gone only through one partner move.
+  o["HBHoldRace"]            << Option(0, 0, 60000);
+  o["HBHoldFreePlies"]       << Option(2, 0, 20);
+  o["HBFeedTieBreak"]        << Option(0, 0, 200);
+  o["HBFeedTieMargin"]       << Option(80, 0, 2000);
+  o["HBCastlePenalty"]       << Option(0, 0, 1000);
+  o["HBFeedCastleFix"]       << Option(true);            // castling earns no feed price (false: the v5 rule, credited as taking our own rook)
+  o["HBFeedEpFix"]          << Option(false);           // quiescence prices en passant as a pawn capture (false: as nothing)
+  o["HBChanceVerify"]        << Option(false);           // re-search the real moves before trusting a drop over a fail-low
+  o["HBChanceCondition"]     << Option(false);           // after a chance not taken, a later one uses P(arrived | not before)
+  o["HBChanceHold"]          << Option(false);           // an arrival goes to the real pocket: dropped now or held (implies the conditioning)
+  o["HBChancePlies"]         << Option(4, 1, 8);         // search plies 1..N where arrivals can be dropped
+  o["HBChanceMinP"]          << Option(5, 0, 100);       // %: rarer types are ignored
+  o["HBChanceMaxCands"]      << Option(12, 1, 64);       // candidate drop squares per type and node
+  o["HBChanceMaxPerLine"]    << Option(1, 1, 4);         // virtual pieces per side on one line
+  o["HBChanceTable"]         << Option("");              // debug: inject the table, e.g. "+N=90/90,-Q=0/80"
   o["Seat"]                  << Option("Awhite", {"Awhite", "Ablack", "Bwhite", "Bblack"});
   o["Clocks"]                << Option("");
   // Arena/HiveMind names and semantics: Team white = White on A + Black on B

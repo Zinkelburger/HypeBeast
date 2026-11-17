@@ -2,6 +2,206 @@
 
 Revision 7 — 2026-11-06. Replaces revision 6 and its phase ordering.
 
+## Revision 11 (engine v6, 2026-11-16): review fixes and their matches
+
+Where this section and the text below disagree, this section wins. v6 is v5
+with `HBFeedCastleFix` on by default (`HBFeedCastleFix=false` plays as v5);
+every other change here is behind an option that is off. `bin/hypebeast-v6`
+gives the same search output as the build that played the matches
+(bin/hypebeast-chance13 with the fix on) on 14 of 14 fixed-node searches.
+
+A second reviewer (GPT-6.1-Sol through Codex, read-only) reviewed the engine;
+each claim was then checked in the code before anything changed.
+
+- **Castling was priced as a feed** (`HBFeedCastleFix`, b6f5083). Castling is
+  encoded as king takes own rook, and `do_move` added the rook's feed price
+  before the castling branch cleared the capture, so every castle in the tree
+  counted as a rook sent to the partner. Live in every go over 200k nodes
+  since v3. On a crafted position castling scored +944 cp with the old rule
+  and +116 cp with the fix.
+- **Castle penalty** (a831828): the penalty was subtracted after a search with
+  untranslated windows; 353 of 812 root evaluations of a castling move read a
+  bound the wrong way at penalty 200. Windows are now translated, finite
+  values stay finite, the root key is salted. logs/c8-castle200-vs-v5 used
+  the old code.
+- **Stale hold** (6f53e37): a hold or stall continued when the position was
+  replaced by a FEN snapshot. Cannot happen in the arena (it sends moves).
+- **Tie-break** (b8dc491): never trades a found mate for a clipped score.
+- **`HBChanceCondition`** (9da371d): a second chance on a line where the first
+  was not taken uses (p1 - p0) / (1 - p0). The old rule counted one arrival
+  twice (crafted case 0.875 against an exact 0.750). 1.14x nodes to depth.
+- **`HBChanceHold`** (de71b9d): an arrival goes into the real pocket and the
+  search chooses between dropping and holding it; the arrived branch runs at
+  reduced depth. Matches the three crafted cases.
+- **`HBFeedEpFix`** (1cd316d): quiescence prices en passant as a pawn capture.
+
+| Match | Result | Log |
+|---|---|---|
+| v5 settings vs HiveMind 5000, screen20, 4.5M | 13-7, 65.0% (48.0 to 78.9) | logs/c6all-vs-hm-n5000 |
+| base (v4 source) vs HiveMind 5000, same openings | 11-6-3, 62.5% (41.8 to 79.5) | logs/basefix-vs-hm-n5000 |
+| castle penalty 200 (old code) vs v5, 500k | 49-51, 49.0% (39.8 to 58.3) | logs/c8-castle200-vs-v5 |
+| hold when mated vs v5, 500k | 53-47, 53.0% (48.3 to 57.7), 5 flags | logs/c8-hold-vs-v5 |
+| castle feed fix on vs off, 500k | 57-43, 57.0% (46.9 to 66.5) | logs/c9-castlefix-vs-off |
+| same, held-out openings, 500k | 61-38-1, 61.5% (51.7 to 70.4), Elo +81 (+12 to +151) | logs/c9-castlefix-vs-off-heldout50 |
+| same, held-out openings, 4.5M | 33-27, 55.0% (42.5 to 66.9) | logs/c9-castlefix-vs-off-n4500k |
+| castle penalty 200 (fixed) vs none, both with the feed fix, 500k | 48-51-1, 48.5% (38.6 to 58.6) | logs/c9-fix-castle200-vs-fix |
+| HBChanceCondition on vs off, 500k | 52-47-1, 52.5% (42.8 to 62.0) | logs/c10-condition-vs-off |
+| HBChanceHold on vs off, 500k | 49-51, 49.0% (38.8 to 59.3) | logs/c11-hold-vs-off |
+| hold when mated vs HiveMind 1500 | 27-11-2, 70.0% (54.5 to 82.0), 7 flags, all ours | logs/c8hold-vs-hm-n1500 |
+| hold + castle feed fix vs HiveMind 1500 | 31-9, 77.5% (62.2 to 87.8), 8 flags, 7 ours | logs/c9hold-fix-vs-hm-n1500 |
+| hold + castle feed fix + castle penalty 200 vs HiveMind 1500 | 31-9, 77.5% (62.2 to 87.8), 8 flags, 7 ours | logs/c9hold-fix-castle200-vs-hm-n1500 |
+| HBFeedEpFix on vs off, 500k | 53-47, 53.0% (45.4 to 60.5) | logs/c11-epfix-vs-off |
+| HBChanceHold + Verify on vs off, 500k | 49-51, 49.0% (38.4 to 59.7) | logs/c11-holdverify-vs-off |
+| HBChanceTrustThem0 65 vs 50, 500k | stopped at 17-17 after 34 of 100 | logs/c11-trustthem65-vs-50 |
+| hold + race + feed fix + castle penalty vs HiveMind 1500 | stopped at 2-0 after 2 of 40 | logs/c13race-fix-castle200-vs-hm-n1500 |
+
+Reading: the castle feed fix is ahead in all three self-play runs (151-108-1
+together) and is the one change with evidence. The castle penalty shows
+nothing in self-play in either version. Condition and Hold are inside the
+noise at 100 games each. Against HiveMind, hold when mated did not beat v5's
+73.8% (logs/c4all-vs-hm-n1500) and HypeBeast's seat flagged in 14 games of
+the two matches, four of them with a positive last eval.
+
+The flags (diagnosed on those 14 games): every one was a hold-when-mated sit
+that lost the clock race. A sitting seat's clock races the opposing seat on
+turn on the partner board, and HiveMind's seat there sat only once its team
+was ahead on time; the rule compared our clock with the mate length only.
+Of 19 games with a hold, one was won. `HBHoldRace` (ac66576, f01c287; ms
+margin, 0 = off) holds only when the partner has a forced mate and the lead
+covers it, shares the arena's one wake timer per board turn between wait,
+stall and hold, and ends a hold when the lead is gone; otherwise the seat
+plays the longest defence. It passes the 28 replayed flag positions and an
+arena-driven test; no match has finished with it. Until one has,
+`HBHoldWhenMated` stays off.
+
+Not supported by the data: a pawn-drop danger term in the evaluation (branch
+pawn-danger, not merged). Its measure did not separate our won and lost
+games 10-20 plies before mate (AUC 0.35 to 0.73), our own eval already read
+-1100 to -2600 cp there, and castling lowers the measure.
+
+Next: the queued `HBHoldRace` matches against HiveMind (1500 nodes with and
+without the castle penalty, then 5000 nodes).
+
+## Revision 10 (engine v5, 2026-11-15): chance inside the tree, referee draws
+
+Where this section and the text below disagree, this section wins.
+
+Why: v4's worlds let pieces arrive only at the first move. Most losses to
+HiveMind were drop mates with a piece that arrived from the other board a few
+moves later, and one move before the mate there was often no escape. Three
+of the 40 games against HiveMind at 1500 nodes (logs/basefix-vs-hm-n1500)
+were also thrown away as draws: HiveMind, lost, repeated the board with a
+drop/capture cycle, which the referee's threefold counts while our search,
+hashing the pockets, never saw it.
+
+- **Chance inside the tree** (`HBChance`, on). The forecast becomes a table:
+  for each side and piece type, the chance it has arrived by that side's
+  first turn in the search and by its second. At `search()` nodes in plies
+  1-4 (depth >= 2, not the root), after the real moves, the side to move may
+  drop a likely piece it does not hold (a virtual piece: the hand count goes
+  to -1; one per side per line). The node's value is the mix, in winning
+  chances, of the best drop and the best real move; a drop is tested with a
+  null window at the value it would need, exactly at PV nodes. TT keys of
+  those plies carry the ply, so values from different contexts never mix.
+  Under HypeBeast a mate with a virtual piece is a real mate, and NNUE stays
+  on with negative hand counts (incremental equals refresh). Only main-pool
+  searches use it, and only when the forecast ran.
+- **Calibration.** k=0: `p = floor0 + (1 - floor0) * min(1, trust0 * W01)`;
+  k=1: `p = floor1 + (1 - floor1) * min(1, trust1 * W01 + late1 * W23)`, W01
+  the weight of forecast lines with that capture in partner plies 0-1 and W23
+  in plies 2-3 only. Fitted on 5,130 self-play decisions
+  (tests/arrival_rates.py): for us 85% / floor 1% and 95%, late 45% / floor
+  3.75%; for them 50% / 0 and 90%, late 30% / floor 2%. These are the
+  defaults (`HBChanceTrust{Us,Them}{0,1}`, `HBChanceLate{Us,Them}1`,
+  `HBChanceFloor{Us,Them}{0,1}`, floors in basis points). Floors go only to
+  types the giving side has on the partner board.
+- **Horizon** (`HBChanceHorizon=1`, on): a move that gives check and its
+  evasion do not advance the chance ply (at most 6 plies of a line), so spite
+  checks cannot push an arrival past the last chance ply.
+- **Stability** (`HBChanceStable`, on): no singular extension at chance plies
+  where the mover could drop. The excluded-move search has no drop pass, so
+  it found nearly every TT move singular; on a position where the opponent's
+  queen arrived with 79% the tree to depth 11 fell from 210k to 57k nodes.
+- **Draw policy** (`HBAvoidDraw`, `HBSeekDraw`, on). The referee draws on the
+  third occurrence of a board with the pockets ignored, or at 100 half-moves.
+  When a board position has been seen twice or the clock is at 98, the root
+  checks every move: does it draw, or can an opponent reply draw (with the
+  pieces they hold, or one their partner, on turn, can capture at once)? Not
+  losing (main score >= -100 cp and partner forecast > -600 cp): such a move
+  is replaced by a root search over the moves that do neither, in a 12% budget
+  reserved up front, if that move scores >= -100 cp. Clearly losing (<= -600
+  cp, no forecast mate for our partner): a move that draws at once is played.
+  Referee wins and moves the exposure tiers or stalling require stand. The
+  exposure, delivery and wait checks now stop at a drawn state.
+- **Kept off:** `HBTreeRepetition` (the threefold inside the search, exact
+  rule, real-game history included: 50-50 against off), `HBChanceVerify`
+  (re-searches the real moves before trusting a drop over a fail-low: sound,
+  1.44x nodes to the same depth at 500k and 2.63x at 4.5M, 51-49 against
+  off), `HBChanceAspiration`, and feed pricing (`HBFeedPriceNodes`,
+  `HBFeedPriceDiv`, `HBFeedPriceCap`, `HBFeedMatePrice`, `HBFeedPriceLost`:
+  defaults are the v4 rule).
+
+How the numbers were measured (fixed node budgets; 95% intervals as the arena
+prints them, opening pairs as the unit):
+
+| Match | Result | Log |
+|---|---|---|
+| chance + worlds (first version) vs base, 500k | 24-16, 60.0% (46.5 to 73.5) | logs/chance-worlds-n500k |
+| chance without worlds vs base, 500k | 14-26, 35.0% (22.5 to 47.5) | logs/chance-noworlds-n500k |
+| v3 rule (neither) vs base, 500k | 10-30, 25.0% (11.7 to 38.3) | logs/control-v3rule-n500k |
+| chance, stable, horizon, calibrated vs base, 500k | 70-30, Elo +147 (+82 to +224) | logs/c2-all-100 |
+| same, held-out openings, 500k | 67-31-2, Elo +131 (+73 to +197) | logs/c2-all-heldout50 |
+| same, held-out, 4.5M | 24-15-1, Elo +80 (-28 to +205) | logs/c2-all-n4500k |
+| chance3 config vs base, 500k | 65-35, Elo +108 (+42 to +181) | logs/c3-all-100 |
+| chance5 + tree repetition vs base, held-out, 4.5M | 43-16-1, Elo +168 (+67 to +307) | logs/c5-treerep-n4500k |
+| tree repetition on vs off, 500k | 50-50 | logs/c5-treerep-vs-off |
+| Verify on vs off, 500k | 51-49 | logs/c3-verify-vs-noverify |
+| Verify on vs base, 500k | 62-37-1, 62.5% (against 65% without it, c3-all-100) | logs/c3-verify-100 |
+| v5 settings (chance4 build) vs HiveMind 1500, screen20 | 28-9-3, 73.8% (62.2 to 85.3) | logs/c4all-vs-hm-n1500 |
+| base (v4 source) vs HiveMind 1500, same openings | 20-17-3, 53.7% (35.2 to 72.3) | logs/basefix-vs-hm-n1500 |
+| v5 settings + feed pricing (chance6) vs HiveMind 1500 | 22-17-1, 56.2% (38.9 to 73.6) | logs/c6feed-vs-hm-n1500 |
+| feed pricing on vs off, 500k | 46-53-1, 46.5% (37.2 to 55.8) | logs/c6-feed-vs-off |
+| feed pricing on vs off, 4.5M, held-out openings | 28-32-0, 46.7% (34.3 to 59.4) | logs/c6-feed-vs-off-n4500k |
+| v5 settings vs HiveMind 5000; base vs HiveMind 5000 | 13-7 (65.0%); 11-6-3 (62.5%), see revision 11 | logs/c6all-vs-hm-n5000, logs/basefix-vs-hm-n5000 |
+
+What did not work: chance without the root-level worlds (it gives up v4's
+gain), Verify (sound but slower, no gain), and feed pricing. Feed pricing
+searched the partner board deeper (1% of the budget per probe), charged
+4500 cp for a piece that lets them mate our partner (1% winning chance
+instead of 18%) and half a piece's value when the partner already looked
+lost (every price used to be 0 then: 41 of 41 such decisions in
+logs/c4all-vs-hm-n1500). It declined 5 of the 7 decisive feeds in
+tests/feed_set.py (v4: 2, chance without it: 1) and lost in play. In
+logs/c6feed-vs-hm-n1500 the mate price fired in 14% of decisions, on two
+piece types at a time, and the main search had 11% fewer nodes; untested
+hypothesis: it refused too many ordinary trades.
+
+Tools added: tests/test_chance.py (chance fixtures, injected and real
+forecasts), tests/test_draw.py (the three drawn games, avoid and seek),
+tests/feed_set.py with openings/feed_set.json (seven decisive feeding
+mistakes against HiveMind, replayable), tests/flag_report.py (classifies
+games that ended on the clock by both sides' last evals), loss_set.py
+`--nodes` and `HB_JUDGE`, terminal fixtures and a replay fuzz that reach the
+threefold through drop/capture cycles.
+
+HiveMind adapter: the arena clone (upstream/cap-dev, gitignored) carries an
+uncommitted patch in `TeamEngineSeat.decide` (tools/bughouse_arena/players.py).
+HiveMind engine-v0.2.0 can answer `bestmove (none)` after reusing its tree in a
+position where it has legal moves; the patch then counts a null output, sends
+`ucinewgame`, sets Team and TimeAdvantage again, resends the position and
+searches once more, instead of letting the seat sit until its flag falls.
+
+Known residuals: the engine's board key carries no promoted markers and keys a
+pseudo-legal rather than legal en-passant square, so in rare positions two
+referee keys merge (tree repetition only; the root check uses the referee's
+strings). The 16 GiB memory cap on this machine's session limits match
+concurrency. bin/fsf-ref hashes to 6ff36f0f... while manifests/pins.json
+records 6ef2fbb6...; unexplained (upstream parity tests pass against it).
+
+Next: feeding the opponent's partner is still the main loss cause against
+HiveMind (diagnosed positions in openings/feed_set.json). HiveMind's own
+arrivals fit a trust of 0.65 against our `HBChanceTrustThem0` of 0.50.
+
 ## Revision 9 (engine v4, 2026-11-09): forecast the arrivals, choose over worlds
 
 Where this section and the text below disagree, this section wins.
@@ -464,9 +664,11 @@ forecasts, deep transfer eval terms, general search tuning, custom piece values,
 a new mate solver, and native CECP team benchmarking. Select later work from
 observed losses rather than a mandatory training phase.
 
-## Later: chance inside the tree (agreed 2026-11-09, not started)
+## Later: chance inside the tree (agreed 2026-11-09; implemented in revision 10)
 
 Do this only after the root-level version shows a measured gain over v3.
+Revision 10 implements it as virtual drops at search nodes in the first four
+plies, mixed in winning chances; it describes what was built and measured.
 
 The root-level version (v4) forecasts arrivals from the partner board's top
 lines, searches our board once per arrival package ("world"), and picks the move

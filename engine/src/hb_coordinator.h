@@ -56,6 +56,8 @@ namespace Coef {
   constexpr int    StallReserveMs    = 8000;
   constexpr int    StallLeadMs       = 500;
   constexpr int    StallPartnerMs    = 2500;    // extra lead while our partner must move first
+  constexpr int    HoldMsPerPly      = 2000;    // HBHoldWhenMated: virtual clock per ply of a mate (mean move cost)
+  constexpr int    HoldPartnerMoveMs = 2500;    // HBHoldRace: our lead lost per partner move (the arena's longest move cost)
 
   // Arrival forecast and worlds (v4). Shares are fractions of the whole go.
   constexpr int    ForecastLines         = 4;     // best partner-board lines read
@@ -74,6 +76,13 @@ namespace Coef {
   constexpr double WorldScoreShare       = 0.40;  // of the budget left: scoring candidates in arrival worlds
   constexpr int    WorldSwitchMargin     = 25;    // cp-equivalent lead needed to replace the main choice
   constexpr size_t WorldHashMb           = 16;
+
+  // Referee draws (HBAvoidDraw / HBSeekDraw). Scores in cp for our team.
+  constexpr int    AvoidDrawBar          = -100;  // main score at least this: we are not losing
+  constexpr int    AvoidDrawPartnerBar   = -600;  // ...unless the partner board is this bad for us
+  constexpr int    SeekDrawBar           = -600;  // main score at most this: clearly losing
+  constexpr int    PartnerMateCp         = 2000;  // forecast score of a mate (finite_cp)
+  constexpr double DrawReserve           = 0.12;  // budget kept for a root search without drawing moves
 }
 
 /// What the controller returns for one 'go'.
@@ -118,12 +127,31 @@ void prepare_forecast(CoordinatorContext& ctx);
 /// go budget.
 Decision coordinate(CoordinatorContext& ctx);
 
+/// Can a referee draw (threefold repetition of the board, pockets ignored, or
+/// fifty moves) happen on our board within our move and the reply? Only then
+/// does draw_policy() do any work. Cheap.
+bool draw_possible(const CoordinatorContext& ctx);
+
+/// After coordinate(): with HBAvoidDraw, when our team is not losing, a move
+/// that draws or lets the opponent draw at once is replaced by the best move
+/// that does neither (root search over the others in the reserved budget).
+/// With HBSeekDraw, when clearly losing, a move that draws at once is played.
+/// Wins found by the referee and moves required by the exposure tiers stand.
+Decision draw_policy(CoordinatorContext& ctx, Decision d);
+
 /// Voluntary waiting (PLAN.md 5.4), evaluated before any search when our
 /// seat is on turn with legal moves. Returns pass=true (with wakeAfterMs)
 /// to sit, otherwise pass=false. Keeps per-process wait state: at most one
 /// 3000 ms wait per own-board turn, original expiry kept across wakes.
 Decision consider_voluntary_wait(const CoordinatorContext& ctx);
 void reset_wait_state();
+
+/// The arena allows one wake timer per board turn (sim.py): a request counts
+/// only when the turn has had none, a later one is ignored, and a move on our
+/// board starts a new turn. Called with every decision that is sent, so Wait,
+/// Stall and Hold know whether this turn's timer is still free and when it
+/// fires. ourClockMs: our clock at this go (ignored when !clocksKnown).
+void note_decision(const TeamState& ts, int board, bool clocksKnown, int ourClockMs, const Decision& d);
 
 } // namespace Stockfish::HB
 

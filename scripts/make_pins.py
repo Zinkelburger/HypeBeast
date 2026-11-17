@@ -50,6 +50,8 @@ pins = {
         "bin/hypebeast-v3": "v3 = v2 + feed prices, exposure tiers, stalling, delivery-win waits (engine commit c8f5abd); tuned on debug.txt only",
         "bin/hypebeast-v4": "v4 = v3 + arrival forecast and weighted worlds (engine commit e9151b1, built before HBForecastTrustLate was added; same moves as that source in 12 of 12 fixed-node checks)",
         "bin/hypebeast-v4b": "v4 with the HBForecastTrustLate option (default 0); played no match",
+        "bin/hypebeast-v5": "v5 = v4 + chance inside the tree (stable, horizon, fitted arrival trust) and the referee draw policy on by default; feed pricing and tree repetition available but off (PLAN.md revision 10)",
+        "bin/hypebeast-v6": "v6 = v5 + HBFeedCastleFix on by default (castling earns no feed price); hold when mated with HBHoldRace, HBChanceCondition, HBChanceHold, HBFeedEpFix and the castle penalty available but off (PLAN.md revision 11)",
     },
     "net": {
         "file": "nets/" + net.name,

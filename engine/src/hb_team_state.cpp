@@ -124,6 +124,8 @@ void TeamState::clone_board(const BoardState& src, BoardState& dst) {
   dst.states = std::move(copy);
   dst.repKeys = src.repKeys;
   dst.repCount = src.repCount;
+  dst.boardKeys = src.boardKeys;
+  dst.boardKeyCount = src.boardKeyCount;
   dst.halfmove = src.halfmove;
 }
 
@@ -150,6 +152,8 @@ bool TeamState::reset(const std::string& fenA, const std::string& fenB, std::str
       bs.halfmove = f.size() > 4 ? std::max(0, std::atoi(f[4].c_str())) : 0;
       bs.repKeys.clear();
       bs.repCount.clear();
+      bs.boardKeys.clear();
+      bs.boardKeyCount.clear();
       record(b);
   }
   moves.clear();
@@ -161,6 +165,9 @@ void TeamState::record(int b) {
   std::string k = rep_key(b);
   boards[b].repKeys.push_back(k);
   boards[b].repCount[k]++;
+  Key bk = pos(b).board_key();
+  boards[b].boardKeys.push_back(bk);
+  boards[b].boardKeyCount[bk]++;
 }
 
 bool TeamState::play(int board, const std::string& uci, std::string& err) {
@@ -225,6 +232,9 @@ void TeamState::undo(const TeamUndo& u) {
   if (--bs.repCount[u.key] == 0)
       bs.repCount.erase(u.key);
   bs.repKeys.pop_back();
+  if (--bs.boardKeyCount[bs.boardKeys.back()] == 0)
+      bs.boardKeyCount.erase(bs.boardKeys.back());
+  bs.boardKeys.pop_back();
   moves.pop_back();
   lastBoard = u.lastBoard;
 }
@@ -237,6 +247,8 @@ void TeamState::assign_light(const TeamState& other) {
       bs.pos.set(bughouse_variant(), other.fen(b), false, &bs.states->back(), Threads.main());
       bs.repKeys = other.boards[b].repKeys;
       bs.repCount = other.boards[b].repCount;
+      bs.boardKeys = other.boards[b].boardKeys;
+      bs.boardKeyCount = other.boards[b].boardKeyCount;
       bs.halfmove = other.boards[b].halfmove;
   }
   moves = other.moves;
@@ -284,6 +296,13 @@ int TeamState::fullmove(int b) const {
 std::string TeamState::rep_key(int b) const {
   return placement(b) + (pos(b).side_to_move() == WHITE ? " w " : " b ")
          + castling(b) + " " + legal_ep(b);
+}
+
+int TeamState::max_repetitions(int b) const {
+  int m = 0;
+  for (const auto& kv : boards[b].repCount)
+      m = std::max(m, kv.second);
+  return m;
 }
 
 int TeamState::repetitions(int b) const {

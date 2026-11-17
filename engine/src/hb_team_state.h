@@ -17,6 +17,7 @@
 
 #include <map>
 #include <string>
+#include <unordered_map>
 #include <utility>
 #include <vector>
 
@@ -54,6 +55,8 @@ struct BoardState {
   StateListPtr states;
   std::vector<std::string> repKeys;      // referee keys of every position so far
   std::map<std::string, int> repCount;   // referee repetition counter (pockets ignored)
+  std::vector<Key> boardKeys;            // Position::board_key() of every position so far
+  std::unordered_map<Key, int> boardKeyCount;   // the same counts by engine key (HBTreeRepetition)
   int halfmove = 0;                      // referee (python-chess) halfmove clock
 };
 
@@ -125,6 +128,9 @@ public:
   // ---- queries ----
   std::string rep_key(int b) const;         // (placement with ~, turn, castling, legal ep)
   int repetitions(int b) const;             // count of the current key
+  int max_repetitions(int b) const;         // highest count of any key so far
+  // Real-game counts of Position::board_key() on a board (HBTreeRepetition)
+  const std::unordered_map<Key, int>& board_key_counts(int b) const { return boards[b].boardKeyCount; }
   int halfmove(int b) const { return boards[b].halfmove; }
   int fullmove(int b) const;
   std::string placement(int b) const;       // board part of the FEN, with ~ markers

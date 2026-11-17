@@ -235,6 +235,9 @@ void ThreadPool::start_thinking(Position& pos, StateListPtr& states,
       th->hbLines.clear();
       th->hbAlpha = -VALUE_INFINITE;
       th->hbBeta = VALUE_INFINITE;
+      th->hbChancePasses = th->hbChanceDrops = th->hbChanceRaised = th->hbChanceCuts = th->hbChanceNodes = 0;
+      th->hbChanceNest = 0;
+      th->hbChanceVerify = th->hbChanceVerifyFail = th->hbChanceUnresolved = th->hbChanceVerifyNodes = 0;
       th->rootMoves = rootMoves;
       th->rootPos.set(pos.variant(), pos.fen(), pos.is_chess960(), &th->rootState, th);
       th->rootState = setupStates->back();

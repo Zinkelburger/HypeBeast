@@ -16,6 +16,7 @@
 #include <thread>
 
 #include "evaluate.h"
+#include "hb_chance.h"
 #include "hb_arena.h"
 #include "hb_coordinator.h"
 #include "hb_decisionlog.h"
@@ -205,13 +206,18 @@ void controller(Search::LimitsType limits) {
       {
           prepare_feed_prices(ctx);
           prepare_forecast(ctx);
+          // A root search without the drawing moves may be needed at the end
+          if (bool(Options["HBAvoidDraw"]) && draw_possible(ctx))
+              budget.open_reserve(Coef::DrawReserve);
       }
       mainResult = run_main_search(ts, sc.board, budget, Phase::MAIN, &log);
       searched = true;
       if (coordination)
       {
           d = coordinate(ctx);
+          d = draw_policy(ctx, d);
           set_feed_prices_planned(false);
+          Chance::Planned = false;
       }
       else if (mainResult.status == ProbeResult::OK && mainResult.finalMove != MOVE_NONE)
           d.move = mainResult.finalMove, d.reason = "main";
@@ -261,6 +267,8 @@ void controller(Search::LimitsType limits) {
   sync_cout << "info string hb_summary " << log.summary(elapsed) << sync_endl;
   if (d.pass && d.wakeAfterMs > 0)
       sync_cout << "info string hb_wake_after_ms=" << d.wakeAfterMs << sync_endl;
+  if (onTurn)
+      note_decision(ts, sc.board, sc.clocksKnown, sc.clocks[sc.board * 2 + (sc.us == BLACK)], d);
   sync_cout << "bestmove " << joint(sc.board, ours) << sync_endl;
   log.flush_jsonl(elapsed);
 }

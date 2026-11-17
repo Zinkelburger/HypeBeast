@@ -90,6 +90,19 @@ FIXTURES = [
     ("repetition on B", START, START,
      ["2g1f3", "2g8f6", "2f3g1", "2f6g8", "2g1f3", "2g8f6", "2f3g1", "2f6g8"],
      False, False, {"draw": True}),
+    # drop/capture cycles: the board repeats while the pockets change (how
+    # HiveMind drew three lost games against v4)
+    ("drop/capture cycle threefold", "6k1/8/8/8/8/8/8/6K1[bbbb] b - - 0 1", START,
+     ["1B@f2", "1g1f2", "1g8h8", "1f2g1", "1B@f2", "1g1f2", "1h8g8", "1f2g1"] * 2,
+     False, False, {"draw": True}),
+    ("drop/capture cycle twofold is not a draw", "6k1/8/8/8/8/8/8/6K1[bbbb] b - - 0 1", START,
+     (["1B@f2", "1g1f2", "1g8h8", "1f2g1", "1B@f2", "1g1f2", "1h8g8", "1f2g1"] * 2)[:-1],
+     False, False, {"draw": False}),
+    # castling rights are part of the key: the start placement four times,
+    # twice with all rights and twice without the king side ones
+    ("castling rights split the repetition", START, START,
+     ["1g1f3", "1g8f6", "1f3g1", "1f6g8", "1g1f3", "1g8f6", "1h1g1", "1h8g8", "1g1h1", "1g8h8",
+      "1f3g1", "1f6g8", "1g1f3", "1g8f6", "1f3g1", "1f6g8"], False, False, {"draw": False}),
 ]
 
 

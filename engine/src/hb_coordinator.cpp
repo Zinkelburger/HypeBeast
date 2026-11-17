@@ -36,6 +36,7 @@
 #include <set>
 #include <sstream>
 
+#include "hb_chance.h"
 #include "hb_coordinator.h"
 #include "hb_decisionlog.h"
 #include "movegen.h"
@@ -65,6 +66,15 @@ bool team_value(const ProbeResult& r, Color stm, Color ours, int& out) {
       return false;
   out = finite_cp(stm == ours ? r.score : -r.score);
   return true;
+}
+
+/// The referee ends the game with a draw (threefold board repetition with the
+/// pockets ignored, or fifty moves) unless the move just played mated someone
+/// first (sim.terminal checks mates before draws). Concrete-move checks below
+/// stop at such a state.
+bool drawn_now(TeamState& work) {
+  return work.is_draw() && !work.is_checkmate(WHITE, false) && !work.is_checkmate(BLACK, false)
+                        && !work.is_checkmate(WHITE, true) && !work.is_checkmate(BLACK, true);
 }
 
 bool wins_now(TeamState& work, int board, Move m, Color team, const bool adv[], const bool known[]) {
@@ -102,6 +112,8 @@ struct Candidate {
   bool hasL = false, hasR = false, hasF = false;
   int L = 0, R = 0, F = 0, S = 0;
   double E = 0;                          // v4: weighted winning chances over the worlds
+  int Sraw = 0;                          // S before the +-FiniteCap clip (HBFeedTieBreak)
+  int mate = 0;                          // +1 / -1: the comparison search found a mate for / against us
   int tier = 0;                          // SAFE, SOFT or CERTAIN
   bool probeFatal = false;               // a probe scored an enemy arrival as mate
   std::string exposure;
@@ -110,7 +122,8 @@ struct Candidate {
 struct ProbeCache {
   std::map<std::string, ProbeResult> results;
   int requested = 0, run = 0;
-  const ProbeResult& get(CoordinatorContext& ctx, const std::string& fen, Phase phase, const std::string& tag) {
+  // board: the board this FEN belongs to (its real history counts repetitions)
+  const ProbeResult& get(CoordinatorContext& ctx, const std::string& fen, int board, Phase phase, const std::string& tag) {
       auto it = results.find(fen);
       ++requested;
       if (it != results.end() && it->second.status != ProbeResult::NO_BUDGET && it->second.status != ProbeResult::CANCELLED)
@@ -123,6 +136,7 @@ struct ProbeCache {
       // One clean start per go is enough: later probes differ in board or
       // hand, so they cannot read each other's table entries.
       req.clear = run == 0 || !bool(Options["HBWorlds"]);
+      req.set_history(ctx.actual, board);
       req.tag = tag;
       ++run;
       return results[fen] = ctx.worker.run(req, ctx.budget, &ctx.log);
@@ -148,6 +162,83 @@ bool opponent_mated(TeamState& work, const CoordinatorContext& ctx) {
                                  : work.is_checkmate(opp, false) && work.is_checkmate(opp, true);
 }
 
+// ---- the arena's one wake timer per board turn (sim.py), shared by Wait,
+// Stall and Hold. A request counts only when this board turn has had none; a
+// later request neither renews nor moves it; a move on our board starts a new
+// turn. note_decision() records every request that is sent.
+
+std::string turn_key(const TeamState& ts, int board) {
+  int plies = 0;
+  for (const auto& m : ts.move_list())
+      plies += m.first == board;
+  return std::to_string(plies) + ":" + ts.rep_key(board);
+}
+
+struct TurnTimer {
+  std::string turnKey;
+  bool used = false;        // this turn's timer has been asked for
+  bool clockKnown = false;
+  int fireClock = 0;        // our clock when it fires
+};
+TurnTimer Timer;
+
+void timer_sync(const TeamState& ts, int board) {
+  std::string key = turn_key(ts, board);
+  if (key != Timer.turnKey)
+  {
+      Timer = TurnTimer();
+      Timer.turnKey = key;
+  }
+}
+
+bool timer_free(const CoordinatorContext& ctx) {
+  timer_sync(ctx.actual, ctx.board);
+  return !Timer.used;
+}
+
+// ms until this turn's timer fires; 0 when none is pending.
+int timer_pending_ms(const CoordinatorContext& ctx) {
+  timer_sync(ctx.actual, ctx.board);
+  if (!Timer.used || !Timer.clockKnown || !ctx.clocksKnown)
+      return 0;
+  return std::max(0, clock_of(ctx, ctx.board, ctx.us) - Timer.fireClock);
+}
+
+// ms until our team's time advantage flips if neither board moves, which
+// wakes our sitting seats (sim.py advantage_flip); -1 if it does not.
+int team_flip_ms(const CoordinatorContext& ctx) {
+  const Color t = ctx.team;               // the team's colour on board A
+  const int lead = clock_of(ctx, 0, t) - clock_of(ctx, 1, t);
+  const int slope = int(ctx.actual.pos(1).side_to_move() == t)
+                  - int(ctx.actual.pos(0).side_to_move() == t);
+  if (lead > 0 && slope < 0)
+      return lead;
+  if (lead <= 0 && slope > 0)
+      return 1 - lead;
+  return -1;
+}
+
+// HBHoldRace > 0 also makes Stall and Wait respect the turn's one timer.
+bool race_guard() { return int(Options["HBHoldRace"]) > 0; }
+
+// A sit with our partner on turn: if it sits as well, nothing moves to wake
+// us. Is a wake with nothing moved (a pending timer of this turn, or a flip
+// of our team's time advantage) assured within byMs? If not and the turn's
+// timer is free, reqMs is set to the timer to ask for (at most byMs).
+bool wake_assured(const CoordinatorContext& ctx, int byMs, int& reqMs) {
+  reqMs = 0;
+  if (byMs <= 0)
+      return false;
+  const int t = timer_pending_ms(ctx);
+  const int f = team_flip_ms(ctx);
+  if ((t > 0 && t <= byMs) || (f >= 0 && f <= byMs))
+      return true;
+  if (!timer_free(ctx))
+      return false;
+  reqMs = byMs;
+  return true;
+}
+
 /// Stalling races our clock against the same-colour seat on the other board:
 /// if both sit, both burn at the same rate and the lower one flags first.
 bool stall_ok(const CoordinatorContext& ctx) {
@@ -157,15 +248,136 @@ bool stall_ok(const CoordinatorContext& ctx) {
   int ours = clock_of(ctx, ctx.board, ctx.us);
   int theirs = clock_of(ctx, pb, ctx.us);
   bool partnerFirst = ctx.actual.pos(pb).side_to_move() == ~ctx.us;
-  return ours >= Coef::StallReserveMs
-      && ours - theirs >= Coef::StallLeadMs + (partnerFirst ? Coef::StallPartnerMs : 0);
+  if (!(ours >= Coef::StallReserveMs
+        && ours - theirs >= Coef::StallLeadMs + (partnerFirst ? Coef::StallPartnerMs : 0)))
+      return false;
+  // HBHoldRace: with our partner on turn our clock may run with nothing to
+  // wake us; the stall's own timer (StallReserveMs before our flag) counts
+  // only while this turn's timer is free or is that one.
+  int req;
+  return !race_guard() || !partnerFirst
+      || wake_assured(ctx, std::max(1, ours - Coef::StallReserveMs), req);
 }
 
 struct StallState {
   bool active = false;
   size_t moves = 0;      // game length when the stall began
+  std::string boards;    // both boards' FENs (pockets included) when it began
+  int needMs = 0;        // HBHoldRace: lead over the diagonal seat the hold needs (0: none)
+  bool free = false;     // HBHoldRace: a mate within HBHoldFreePlies (needs no partner mate)
+  bool guarded = false;  // HBHoldRace was on when the hold began
 };
+
+// What must be unchanged for a stall or hold to continue without a search:
+// the move count alone misses a new `position fen` snapshot with no moves.
+std::string boards_fingerprint(const TeamState& ts) {
+  return ts.fen(0) + "|" + ts.fen(1);
+}
+bool unchanged_since(const StallState& s, const TeamState& ts) {
+  return s.moves == ts.move_count() && s.boards == boards_fingerprint(ts);
+}
 StallState Stall;
+
+// HBHoldWhenMated: sitting because every move is mated on our board while the
+// partner is still in the game. Held without a new search until anything
+// moves (an arrival may bring a defence).
+StallState Hold;
+
+// HBHoldRace: our clock minus the diagonal seat's (the same colour on the
+// partner board). If both seats sit, those two clocks run and the lower one
+// flags first, on either board. While the diagonal seat is on turn the lead
+// stays; while our partner is, it shrinks by our partner's thinking.
+//
+// sim.py's TimeAdvantage(team) compares the team's board-A seat with the
+// same-colour seat on board B. For a board-A seat that is this pair. For a
+// board-B seat it is the other diagonal (our partner and our opponent), but
+// in the arena all four clocks start equal and exactly one clock runs per
+// board, so aW + aB = bW + bB at every moment, hence aW - bW = bB - aB and
+// aB - bB = bW - aW: on both boards the lead is our team's time-advantage
+// margin (positive: our team is up; negative: theirs is). The hold rules do
+// not rely on this: team_flip_ms() reads the referee's pair.
+int race_lead(const CoordinatorContext& ctx) {
+  return clock_of(ctx, ctx.board, ctx.us) - clock_of(ctx, 1 - ctx.board, ctx.us);
+}
+
+// HBHoldRace: may a hold sit now (start or continue)? need: the lead over the
+// diagonal seat the hold needs (a free hold: 0). Sets wakeMs (> 0) to the
+// timer to ask for, why to the reason when it may not.
+//
+// - The diagonal seat on turn: the lead stays until it moves, and its move
+//   wakes us (500 ms later); if it sits as well, the lower clock flags first.
+//   So a lead of at least need (and > 0) is enough, and no timer is spent.
+// - Our partner on turn: the lead shrinks while it thinks, and if it sits as
+//   well, only a timer or a flip of our team's time advantage wakes us. That
+//   wake must come before the lead runs out (in the arena the flip comes
+//   exactly then, see race_lead). A race hold asks for the turn's timer, when
+//   free, at the moment its lead falls below need.
+// - A free hold (we are mated in one move) with the lead gone sits only while
+//   our partner is on turn, and only with a wake within one partner move
+//   (HoldPartnerMoveMs): sitting gives our partner its move for certain,
+//   where moving lets our opponent's mate race it; afterwards the diagonal
+//   seat is on turn with its team up on time and may sit until our flag, so
+//   then we move.
+bool hold_guard(const CoordinatorContext& ctx, int need, bool free, int& wakeMs, std::string& why) {
+  wakeMs = 0;
+  why.clear();
+  if (!ctx.clocksKnown)
+  {
+      why = "no_clocks";
+      return false;
+  }
+  const int lead = race_lead(ctx);
+  const bool ahead = lead > 0 && lead >= need;
+  const bool partnerOnTurn = ctx.actual.pos(1 - ctx.board).side_to_move() == ~ctx.us;
+  if (!partnerOnTurn)
+  {
+      if (!ahead)
+          why = "race_lead";
+      return ahead;
+  }
+  int by, want = 0;
+  if (ahead)
+  {
+      by = lead;
+      if (!free)
+          want = std::max(1, lead - need + 1);
+  }
+  else if (free)
+      by = std::min(Coef::HoldPartnerMoveMs + 1, clock_of(ctx, ctx.board, ctx.us) - int(Options["HBHoldRace"]));
+  else
+  {
+      why = "race_lead";
+      return false;
+  }
+  if (want > 0 && timer_free(ctx))
+  {
+      wakeMs = want;
+      return true;
+  }
+  if (wake_assured(ctx, by, wakeMs))
+      return true;
+  why = "no_wake";
+  return false;
+}
+
+// HBHoldRace: our partner's moves to a forced mate on the partner board by
+// the forecast's best line (0: none seen).
+int partner_mate_moves() {
+  if (!Fc.ready || Fc.lines.empty() || Fc.lines[0].value == VALUE_NONE)
+      return 0;
+  const Value v = Fc.lines[0].value;
+  if (Fc.moverIsPartner && v >= VALUE_MATE_IN_MAX_PLY)
+      return (VALUE_MATE - v + 1) / 2;        // partner on turn: mate in an odd ply count
+  if (!Fc.moverIsPartner && v <= VALUE_MATED_IN_MAX_PLY)
+      return (VALUE_MATE + v) / 2;            // the diagonal seat on turn is mated
+  return 0;
+}
+
+// This go's partner-board score for our team (feed-price base probe), and the
+// prices of pieces handed to the opponent (cp), for the hold and tie-break rules.
+bool HaveQ0 = false;
+int  PartnerQ0 = 0;
+int  TheirsCp[PIECE_TYPE_NB] = {};
 
 // Can the opponent's partner, holding `fed`, drop it on Y for an immediate
 // team mate (joint referee)? Their side must be on move on Y.
@@ -222,6 +434,11 @@ int exposure_tier(const CoordinatorContext& ctx, TeamState& work, Move m, std::s
           continue;
       std::string rUci = UCI::move(work.pos(X), r);
       TeamUndo u2 = work.play_undoable(X, r);    // piece goes to the opponent on Y
+      if (drawn_now(work))                        // the capture ends the game drawn
+      {
+          work.undo(u2);
+          continue;
+      }
       Piece fed = u2.transfer.piece;
       Color dropper = color_of(fed);              // opponent's colour on Y
       std::string fenX = work.fen(X), fenY = work.fen(Y), drop;
@@ -275,7 +492,7 @@ int exposure_tier(const CoordinatorContext& ctx, TeamState& work, Move m, std::s
               continue;
           std::string rUci = UCI::move(work.pos(Y), r), drop;
           TeamUndo u2 = work.play_undoable(Y, r);  // piece goes to the opponent on X
-          bool mates = drop_mates(ctx, work, X, u2.transfer.piece, drop);
+          bool mates = !drawn_now(work) && drop_mates(ctx, work, X, u2.transfer.piece, drop);
           work.undo(u2);
           if (mates)
           {
@@ -296,6 +513,11 @@ bool delivery_wins(const CoordinatorContext& ctx, TeamState& work, Move m) {
   TeamUndo u = work.play_undoable(X, m);
   PieceType t = type_of(u.transfer.piece);
   bool wins = false;
+  if (drawn_now(work))                            // our capture ends the game drawn
+  {
+      work.undo(u);
+      return false;
+  }
   for (const auto& dm : MoveList<LEGAL>(work.pos(Y)))
   {
       if (type_of(dm) != DROP || in_hand_piece_type(dm) != t)
@@ -328,7 +550,11 @@ bool delivery_wins(const CoordinatorContext& ctx, TeamState& work, Move m) {
 void prepare_feed_prices(CoordinatorContext& ctx) {
   Cache = ProbeCache();
   PricesOn = false;
+  HaveQ0 = false;
+  std::fill(TheirsCp, TheirsCp + PIECE_TYPE_NB, 0);
   set_feed_prices_planned(false);
+  FeedCastleFix = bool(Options["HBFeedCastleFix"]);
+  FeedEpFix = bool(Options["HBFeedEpFix"]);
   Budget& b = ctx.budget;
   bool bigEnough = b.node_limited() ? b.total_nodes() > Coef::PriceMinNodes
                                     : b.time_limited() && b.total_ms() >= Coef::PriceMinMs;
@@ -342,9 +568,28 @@ void prepare_feed_prices(CoordinatorContext& ctx) {
   std::map<PieceType, int> ours{{PAWN, 40}, {KNIGHT, 100}, {BISHOP, 100}, {ROOK, 130}, {QUEEN, 200}};
   std::map<PieceType, int> theirs = ours;
 
+  // What a piece handed to the opponent costs (HBFeedPrice* options; the
+  // defaults are the old rule: depth-3 probe, half the measured loss, at
+  // most 500 cp, 1500 cp for a mate, nothing when the partner looks lost).
+  const int deepPm  = int(Options["HBFeedPriceNodes"]);   // per mille of the go budget per probe; 0: depth-3 probes
+  const int div     = std::max(1, int(Options["HBFeedPriceDiv"]));
+  const int cap     = int(Options["HBFeedPriceCap"]);
+  const int mateCp  = int(Options["HBFeedMatePrice"]);
+  const int lostPct = int(Options["HBFeedPriceLost"]);
+
+  auto theirs_price = [&](int base, int v) {
+      return v <= -Coef::FiniteCap ? mateCp : std::clamp((base - v) / div, 0, cap);
+  };
+  // The partner already looks lost: a piece still costs something (a faster
+  // mate, less hope), a share of its value rather than nothing. Feeding stays
+  // possible when it wins our own board quickly (a mate is never priced).
+  auto lost_price = [&](PieceType t) { return lostPct * int(PieceValue[EG][t]) / PawnValueEg; };
+
   int q0 = 0;
-  const ProbeResult& r0 = Cache.get(ctx, ctx.actual.fen(pb), Phase::DISCOVERY, "partner_base");
-  if (team_value(r0, pbStm, partner, q0))
+  const ProbeResult& r0 = Cache.get(ctx, ctx.actual.fen(pb), pb, Phase::DISCOVERY, "partner_base");
+  const bool haveQ0 = team_value(r0, pbStm, partner, q0);
+  HaveQ0 = haveQ0, PartnerQ0 = q0;
+  if (haveQ0)
       for (PieceType t : DeliveryTypes)
       {
           TeamState mine, enemy;
@@ -353,16 +598,67 @@ void prepare_feed_prices(CoordinatorContext& ctx) {
           mine.add_to_pocket(pb, make_piece(partner, t));
           enemy.add_to_pocket(pb, make_piece(ctx.us, t));
           int v;
-          if (team_value(Cache.get(ctx, mine.fen(pb), Phase::DISCOVERY, std::string("partner_") + type_char(t)), pbStm, partner, v))
+          if (team_value(Cache.get(ctx, mine.fen(pb), pb, Phase::DISCOVERY, std::string("partner_") + type_char(t)), pbStm, partner, v))
               ours[t] = v >= Coef::FiniteCap && q0 < Coef::FiniteCap ? Coef::MatePriceOurs
                                                                      : std::clamp((v - q0) / Coef::PriceDiv, 0, Coef::PriceCap);
-          if (team_value(Cache.get(ctx, enemy.fen(pb), Phase::DISCOVERY, std::string("enemy_") + type_char(t)), pbStm, partner, v))
-              theirs[t] = v <= -Coef::FiniteCap && q0 > -Coef::FiniteCap ? Coef::MatePriceTheirs
-                                                                         : std::clamp((q0 - v) / Coef::PriceDiv, 0, Coef::PriceCap);
+          if (deepPm > 0)
+              continue;   // priced by the deep probes below
+          // (probed even when the partner looks lost, as before: same nodes)
+          if (team_value(Cache.get(ctx, enemy.fen(pb), pb, Phase::DISCOVERY, std::string("enemy_") + type_char(t)), pbStm, partner, v))
+              theirs[t] = q0 <= -Coef::FiniteCap ? lost_price(t) : theirs_price(q0, v);
+          else if (q0 <= -Coef::FiniteCap && lostPct > 0)
+              theirs[t] = lost_price(t);
+      }
+
+  // Pieces for the opponent. Deep probes (HBFeedPriceNodes > 0) search the
+  // partner board to a node budget instead of depth 3, base and with-piece
+  // alike, and replace the shallow probes for these prices.
+  auto deep_value = [&](const std::string& fen, const std::string& tag, bool clear, int& out) {
+      ProbeRequest req;
+      req.fen = fen;
+      req.phase = Phase::DISCOVERY;
+      req.clear = clear;
+      req.depth = 0;
+      req.maxNodes = b.share_nodes(deepPm / 1000.0);
+      req.maxTimeMs = b.share_ms(deepPm / 1000.0);
+      req.tag = tag;
+      req.set_history(ctx.actual, pb);
+      ProbeResult r = ctx.worker.run(req, b, &ctx.log);
+      if (r.status == ProbeResult::NO_LEGAL_MOVES)
+      {
+          out = pbStm == partner ? -Coef::FiniteCap : Coef::FiniteCap;
+          return true;
+      }
+      if (!r.usable_exact())
+          return false;
+      out = finite_cp(pbStm == partner ? r.score : -r.score);
+      return true;
+  };
+  int qd = q0;
+  const bool haveBase = deepPm > 0 ? deep_value(ctx.actual.fen(pb), "partner_base_deep", true, qd) : haveQ0;
+  const bool partnerLost = haveBase && qd <= -Coef::FiniteCap;
+  if (deepPm > 0 && haveBase)
+      for (PieceType t : DeliveryTypes)
+      {
+          if (partnerLost)
+          {
+              theirs[t] = lost_price(t);
+              continue;
+          }
+          TeamState enemy;
+          enemy.assign_light(ctx.actual);
+          enemy.add_to_pocket(pb, make_piece(ctx.us, t));
+          int v;
+          if (deep_value(enemy.fen(pb), std::string("enemy_deep_") + type_char(t), false, v))
+              theirs[t] = theirs_price(qd, v);
       }
 
   std::ostringstream ps;
   ps << "{\"base\":" << q0;
+  if (deepPm > 0)
+      ps << ",\"base_deep\":" << (haveBase ? std::to_string(qd) : "null");
+  if (partnerLost)
+      ps << ",\"partner_lost\":true";
   for (int side = 0; side < 2; ++side)
   {
       ps << (side ? ",\"theirs\":{" : ",\"ours\":{");
@@ -371,6 +667,8 @@ void prepare_feed_prices(CoordinatorContext& ctx) {
       {
           int cp = side ? theirs[t] : ours[t];
           FedGain[side ? ~ctx.us : ctx.us][t] = cp * PawnValueEg / 100;
+          if (side)
+              TheirsCp[t] = cp;
           ps << (first ? "" : ",") << "\"" << type_char(t) << "\":" << cp;
           first = false;
       }
@@ -390,19 +688,68 @@ void prepare_feed_prices(CoordinatorContext& ctx) {
 void prepare_forecast(CoordinatorContext& ctx) {
   Fc = Forecast();
   WorldsOn = false;
+  Chance::Planned = false;
   Budget& b = ctx.budget;
   bool bigEnough = b.node_limited() ? b.total_nodes() > Coef::PriceMinNodes
                                     : b.time_limited() && b.total_ms() >= Coef::PriceMinMs;
-  if (!bool(Options["HBWorlds"]) || !bigEnough)
+  const bool worlds = bool(Options["HBWorlds"]);
+  const bool chance = bool(Options["HBChance"]);
+  std::string injected = std::string(Options["HBChanceTable"]);
+  if (injected == "<empty>" || injected == "none")
+      injected.clear();
+
+  // Chance inside the tree (main-pool searches). Its values depend on this
+  // go's table, so the main table starts empty.
+  auto plan_chance = [&]() {
+      Chance::Planned = true;
+      if (!PricesOn)
+          TT.clear();
+      ctx.log.set("chance", Chance::T.source);
+      sync_cout << "info string hb_chance " << Chance::json() << sync_endl;
+  };
+  if (chance)
+      Chance::read_options();
+  // Debug: an injected table needs no forecast and ignores the size gate.
+  if (chance && !injected.empty())
+  {
+      std::string err;
+      if (Chance::parse(injected, ctx.us, err))
+          plan_chance();
+      else
+          sync_cout << "info string hb_error chance_table " << err << sync_endl;
+  }
+  if ((!worlds && !chance) || !bigEnough || (!worlds && Chance::Planned))
       return;
-  // The forecast runs before the main search and the worlds after it.
-  b.set_slices(Slices{0.58, 0.02, 0.38, 0.02});
+  // The forecast runs before the main search and the worlds after it. With
+  // chance but no worlds, the worlds' share goes to the main search.
+  b.set_slices(worlds ? Slices{0.58, 0.02, 0.38, 0.02} : Slices{0.85, 0.02, 0.11, 0.02});
   ctx.worker.set_hash_mb(Coef::WorldHashMb);
   Fc = make_forecast(ctx);
-  WorldsOn = true;
-  ctx.log.set("worlds", std::to_string(Fc.worlds.size()));
-  ctx.log.set("p_none", std::to_string(int(std::lround(Fc.worlds[0].p * 100))));
+  WorldsOn = worlds;
+  if (worlds)
+  {
+      ctx.log.set("worlds", std::to_string(Fc.worlds.size()));
+      ctx.log.set("p_none", std::to_string(int(std::lround(Fc.worlds[0].p * 100))));
+  }
   sync_cout << "info string hb_forecast " << Fc.json() << sync_endl;
+  if (chance && !Chance::Planned && Fc.ready)
+  {
+      // Which types each receiver's giver can capture on the partner board:
+      // our partner takes pieces of our colour there, theirs takes our
+      // partner's. A promoted piece arrives as a pawn.
+      bool present[2][PIECE_TYPE_NB] = {};
+      const Position& py = ctx.actual.pos(1 - ctx.board);
+      for (int s = 0; s < 2; ++s)
+          for (Bitboard bb = py.pieces(s ? ~ctx.us : ctx.us); bb; )
+          {
+              Square sq = pop_lsb(bb);
+              PieceType t = py.is_promoted(sq) ? PAWN : type_of(py.piece_on(sq));
+              if (t != KING)
+                  present[s][t] = true;
+          }
+      Chance::build(Fc, ctx.us, Chance::read_calibration(), present);
+      plan_chance();
+  }
 }
 
 Decision coordinate(CoordinatorContext& ctx) {
@@ -431,8 +778,89 @@ Decision coordinate(CoordinatorContext& ctx) {
       s.wakeAfterMs = std::max(1, clock_of(ctx, ctx.board, ctx.us) - Coef::StallReserveMs);
       Stall.active = true;
       Stall.moves = ctx.actual.move_count();
+      Stall.boards = boards_fingerprint(ctx.actual);
       log.set("stall_lead_ms", std::to_string(clock_of(ctx, ctx.board, ctx.us) - clock_of(ctx, pb, ctx.us)));
       return s;
+  };
+
+  // HBHoldWhenMated. The main search's exact score is a mate against us, so
+  // every legal move is mated in the no-arrival world: the chance search
+  // cannot fake that (an opponent's virtual drop only mixes into a finite
+  // value; a mixed value is a mate only when the real moves already mate).
+  // Moving into the mate loses; sitting freezes this board and gives our
+  // partner until our flag. Sit when the partner is not lost (forecast or
+  // partner probe above the mated bound) and our clock outlasts the mate
+  // (about 2 s of virtual clock per ply, the mean move cost). Arrivals wake
+  // us and the position is searched again (Hold ends when anything moves).
+  int holdNeedMs = 0;                         // HBHoldRace: lead the hold needs, 0 when free or off
+  bool holdFree = false, holdGuarded = false;  // HBHoldRace: a free hold; the guard admitted it
+  int holdWakeMs = 0;                         // HBHoldRace: the timer hold_guard asked for
+  auto hold_mated = [&](std::string& why) {
+      if (!bool(Options["HBHoldWhenMated"]) || !ctx.clocksKnown)
+          return false;
+      if (ctx.main.status != ProbeResult::OK || !ctx.main.exact || ctx.main.score > VALUE_MATED_IN_MAX_PLY)
+          return false;
+      int partnerCp;
+      if (Fc.ready && !Fc.lines.empty())
+          partnerCp = Fc.moverIsPartner ? Fc.lines[0].score : -Fc.lines[0].score;
+      else if (HaveQ0)
+          partnerCp = PartnerQ0;
+      else
+          return false;                      // nothing known about the partner board
+      const int plies = VALUE_MATE + ctx.main.score;
+      const int ours = clock_of(ctx, ctx.board, ctx.us);
+      std::ostringstream h;
+      h << "partner_cp=" << partnerCp << " mated_plies=" << plies << " clock=" << ours
+        << " diagonal=" << clock_of(ctx, pb, ctx.us);
+      why = h.str();
+      if (partnerCp <= -Coef::FiniteCap)
+          return false;
+      if (!(ours > plies * Coef::HoldMsPerPly))
+          return false;
+      holdNeedMs = 0, holdFree = false, holdGuarded = false, holdWakeMs = 0;
+      const int race = int(Options["HBHoldRace"]);
+      if (race <= 0)
+          return true;
+      // A mutual sit is lost unless our lead outlasts our partner's mate:
+      // the diagonal seat keeps moving only while it is behind. A mate in
+      // HBHoldFreePlies plies needs no partner mate, only the race guard.
+      const int lead = race_lead(ctx);
+      const int pm = partner_mate_moves();
+      const bool free = plies <= int(Options["HBHoldFreePlies"]);
+      const int need = free ? 0 : race + pm * Coef::HoldPartnerMoveMs;
+      h << " lead=" << lead << " partner_mate=" << pm;
+      if (free)
+          h << " race=free";
+      else
+          h << " need=" << need;
+      h << " partner_on_turn=" << int(pbOnTurnIsPartner);
+      why = h.str();
+      std::string no = "no_partner_mate";
+      int wake = 0;
+      if ((free || pm) && hold_guard(ctx, need, free, wake, no))
+      {
+          holdNeedMs = need, holdFree = free, holdGuarded = true, holdWakeMs = wake;
+          return true;
+      }
+      log.set("hold_declined", no);
+      js << ",\"hold_declined\":" << json_str(why + " declined=" + no);
+      return false;
+  };
+  auto hold = [&](const std::string& why) {
+      Decision s;
+      s.pass = true;
+      Hold.active = true;
+      Hold.moves = ctx.actual.move_count();
+      Hold.boards = boards_fingerprint(ctx.actual);
+      Hold.needMs = holdNeedMs;
+      Hold.free = holdFree;
+      Hold.guarded = holdGuarded;
+      // HBHoldRace: the turn's one timer, when hold_guard asked for it (moves
+      // on the other board and our team's time-advantage flips wake us anyway).
+      s.wakeAfterMs = holdWakeMs;
+      log.set("hold", why);
+      js << ",\"hold\":" << json_str(why);
+      return finish(s, "hold_mated");
   };
 
   TeamState work;
@@ -471,6 +899,10 @@ Decision coordinate(CoordinatorContext& ctx) {
           log.set("veto", how);
           return finish(stall(), "stall_deny");
       }
+      std::string why;
+      if (hold_mated(why) && !(pbOnTurnIsPartner && TeamState::captured_type(root, M) != NO_PIECE_TYPE
+                               && delivery_wins(ctx, work, M)))
+          return hold(why);
       return finish(d, "only_move");
   }
 
@@ -496,6 +928,13 @@ Decision coordinate(CoordinatorContext& ctx) {
           log.set("override", "1");
           return finish(d, "delivery_win");
       }
+  }
+
+  // (after the delivery wins: a capture that lets our partner mate wins)
+  {
+      std::string why;
+      if (hold_mated(why))
+          return hold(why);
   }
 
   if (ctx.main.status != ProbeResult::OK || ctx.main.depth == 0)
@@ -539,7 +978,7 @@ Decision coordinate(CoordinatorContext& ctx) {
   std::map<PieceType, int> F;                 // only exact pairs
   if (!captureTypes.empty())
   {
-      const ProbeResult& r0 = cache.get(ctx, ctx.actual.fen(pb), Phase::DISCOVERY, "partner_base");
+      const ProbeResult& r0 = cache.get(ctx, ctx.actual.fen(pb), pb, Phase::DISCOVERY, "partner_base");
       hasQ0 = team_value(r0, pbStm, partner, q0);
       js << ",\"partner_base\":" << (hasQ0 ? std::to_string(q0) : "null");
       js << ",\"partner_probes\":{";
@@ -550,7 +989,7 @@ Decision coordinate(CoordinatorContext& ctx) {
               TeamState copy;
               copy.assign_light(ctx.actual);
               copy.add_to_pocket(pb, make_piece(partner, t));
-              const ProbeResult& r = cache.get(ctx, copy.fen(pb), Phase::DISCOVERY, std::string("partner_") + type_char(t));
+              const ProbeResult& r = cache.get(ctx, copy.fen(pb), pb, Phase::DISCOVERY, std::string("partner_") + type_char(t));
               int qt;
               bool ok = hasQ0 && team_value(r, pbStm, partner, qt);
               if (ok)
@@ -777,6 +1216,51 @@ Decision coordinate(CoordinatorContext& ctx) {
       js << "]";
   };
 
+  // HBFeedTieBreak: among candidates scoring within the window of the chosen
+  // one, prefer the move whose most expensive piece the opponent can take at
+  // once (priced by this go's feed prices) is cheaper by more than
+  // HBFeedTieMargin. No search: one ply of legal replies per candidate.
+  // The window is on the unclipped score (S is clipped at +-FiniteCap, where a
+  // forced mate and a large finite edge look alike), and a candidate whose
+  // comparison found no mate for us never replaces one that did.
+  auto feed_exposure = [&](Move m) {
+      TeamUndo u = work.play_undoable(ctx.board, m);
+      int worst = 0;
+      for (const auto& r : MoveList<LEGAL>(work.pos(ctx.board)))
+      {
+          PieceType t = TeamState::captured_type(work.pos(ctx.board), r);
+          if (t != NO_PIECE_TYPE)
+              worst = std::max(worst, TheirsCp[t]);
+      }
+      work.undo(u);
+      return worst;
+  };
+  auto tie_break = [&](const Candidate& chosen, const std::string& why) {
+      const int window = int(Options["HBFeedTieBreak"]);
+      const int margin = int(Options["HBFeedTieMargin"]);
+      if (window <= 0 || !PricesOn || !chosen.hasL)
+          return finish(d, why);
+      const int base = feed_exposure(chosen.move);
+      const Candidate* pick = nullptr;
+      int pickFeed = base;
+      for (const auto& c : cands)
+      {
+          if (&c == &chosen || !c.hasL || c.tier > chosen.tier || c.Sraw < chosen.Sraw - window || c.mate < chosen.mate)
+              continue;
+          int f = feed_exposure(c.move);
+          if (f < pickFeed || (pick && f == pickFeed && c.Sraw > pick->Sraw))
+              pick = &c, pickFeed = f;
+      }
+      if (!pick || base - pickFeed <= margin)
+          return finish(d, why);
+      js << ",\"feed_tiebreak\":{\"from\":" << json_str(chosen.uci) << ",\"to\":" << json_str(pick->uci)
+         << ",\"feed_from\":" << base << ",\"feed_to\":" << pickFeed << "}";
+      d.move = pick->move;
+      log.set("override", "1");
+      log.set("override_source", "feed_tiebreak");
+      return finish(d, "feed_tiebreak");
+  };
+
   // ---- v4: one search of our board per forecast world, then the move with
   // the best probability-weighted winning chances
   if (WorldsOn)
@@ -839,6 +1323,7 @@ Decision coordinate(CoordinatorContext& ctx) {
       {
           ProbeRequest req;
           req.fen = runs[i].fen;
+          req.set_history(ctx.actual, ctx.board);
           req.searchMoves = legalUci;
           req.phase = Phase::PROBES;
           req.clear = i == 1;
@@ -870,6 +1355,7 @@ Decision coordinate(CoordinatorContext& ctx) {
       {
           ProbeRequest req;
           req.fen = runs[i].fen;
+          req.set_history(ctx.actual, ctx.board);
           req.searchMoves = smUci;
           req.multiPV = sm.size();
           req.phase = Phase::PROBES;
@@ -926,7 +1412,10 @@ Decision coordinate(CoordinatorContext& ctx) {
                       e += runs[i].p * win(runs[i].value[c.move]);
               c.E = e;
               double q = std::clamp(e, 1e-4, 1.0 - 1e-4);
-              c.S = std::clamp(int(std::lround(scale * std::log(q / (1.0 - q)))), -Coef::FiniteCap, Coef::FiniteCap);
+              c.Sraw = int(std::lround(scale * std::log(q / (1.0 - q))));
+              c.S = std::clamp(c.Sraw, -Coef::FiniteCap, Coef::FiniteCap);
+              const int v0 = runs[0].value[c.move];
+              c.mate = v0 >= 90000 ? 1 : v0 <= -90000 ? -1 : 0;
           }
 
       log.set("worlds_scored", std::to_string(scoredWorlds));
@@ -975,9 +1464,9 @@ Decision coordinate(CoordinatorContext& ctx) {
           d.move = best->move;
           log.set("override", "1");
           log.set("override_source", best->source);
-          return finish(d, "world_switch");
+          return tie_break(*best, "world_switch");
       }
-      return finish(d, "kept_main");
+      return tie_break(cands[0], "kept_main");
   }
 
   // ---- simulated hands: one scenario per partner-board capture after m
@@ -1049,7 +1538,7 @@ Decision coordinate(CoordinatorContext& ctx) {
           {
               Scenario& s = c.scen[k];
               ++required;
-              const ProbeResult& r = cache.get(ctx, s.fen, Phase::PROBES,
+              const ProbeResult& r = cache.get(ctx, s.fen, ctx.board, Phase::PROBES,
                                                c.uci + (k ? std::string("+") + type_char(type_of(s.arrival)) : std::string("+none")));
               // probe root: opponent to move on our board (turn unchanged)
               s.done = team_value(r, ~ctx.us, ctx.us, s.value);
@@ -1115,11 +1604,17 @@ Decision coordinate(CoordinatorContext& ctx) {
   for (auto& c : cands)
       for (const auto& line : cmp.lines)
           if (line.first == c.move && line.second != -VALUE_INFINITE)
+          {
               c.hasL = true, c.L = finite_cp(line.second);
+              c.mate = line.second >= VALUE_MATE_IN_MAX_PLY ? 1 : line.second <= VALUE_MATED_IN_MAX_PLY ? -1 : 0;
+          }
   for (auto& c : cands)
+  {
       // With prices on, L already holds what the capture is worth across boards.
       c.S = c.L + std::max(c.R / Coef::RDiv, -Coef::RCap)
                 + (PricesOn ? 0 : std::clamp(c.F, -Coef::FCap, Coef::FCap));
+      c.Sraw = c.S;
+  }
   report_candidates(cmp.depth);
 
   if (cmp.status != ProbeResult::OK || cmp.depth == 0 || !cands[0].hasL)
@@ -1150,9 +1645,227 @@ Decision coordinate(CoordinatorContext& ctx) {
       d.move = best->move;
       log.set("override", "1");
       log.set("override_source", best->source);
-      return finish(d, "override");
+      return tie_break(*best, "override");
   }
-  return finish(d, "kept_main");
+  return tie_break(cands[0], "kept_main");
+}
+
+
+// ------------------------------------------------------------ draws
+
+namespace {
+
+bool mated_in_one(const CoordinatorContext& ctx, TeamState& work, Move m) {
+  TeamUndo u = work.play_undoable(ctx.board, m);
+  bool mated = false;
+  for (const auto& r : MoveList<LEGAL>(work.pos(ctx.board)))
+  {
+      TeamUndo u2 = work.play_undoable(ctx.board, r);
+      mated = work.is_checkmate(ctx.team, ctx.advantage[ctx.team]);
+      work.undo(u2);
+      if (mated)
+          break;
+  }
+  work.undo(u);
+  return mated;
+}
+
+bool has(const std::vector<Move>& v, Move m) { return std::find(v.begin(), v.end(), m) != v.end(); }
+
+bool board_draw(const TeamState& w, int b) { return w.halfmove(b) >= 100 || w.repetitions(b) >= 3; }
+
+/// After our move (already played on work): can the opponent's partner, on
+/// turn on the other board, capture a piece that the opponent then drops here
+/// to complete a draw on this board?
+bool draw_by_arrival(const CoordinatorContext& ctx, TeamState& work) {
+  const int X = ctx.board, Y = 1 - X;
+  if (work.pos(Y).side_to_move() != ctx.us)        // the opponent's partner plays our colour there
+      return false;
+  std::set<PieceType> tried;
+  for (const auto& c : MoveList<LEGAL>(work.pos(Y)))
+  {
+      PieceType t = TeamState::captured_type(work.pos(Y), c);
+      if (t == NO_PIECE_TYPE || tried.count(t))
+          continue;
+      tried.insert(t);
+      TeamUndo u = work.play_undoable(Y, c);         // the piece goes to the opponent here
+      bool drawn = false;
+      for (const auto& r : MoveList<LEGAL>(work.pos(X)))
+      {
+          if (type_of(r) != DROP || in_hand_piece_type(r) != t)
+              continue;
+          TeamUndo u2 = work.play_undoable(X, r);
+          drawn = board_draw(work, X);
+          work.undo(u2);
+          if (drawn)
+              break;
+      }
+      work.undo(u);
+      if (drawn)
+          return true;
+  }
+  return false;
+}
+
+} // namespace
+
+bool draw_possible(const CoordinatorContext& ctx) {
+  // After our move and a reply the halfmove clock grows by at most 2, and a
+  // threefold needs a board key that has been seen twice already.
+  return ctx.actual.max_repetitions(ctx.board) >= 2 || ctx.actual.halfmove(ctx.board) >= 98;
+}
+
+Decision draw_policy(CoordinatorContext& ctx, Decision d) {
+  const bool avoid = bool(Options["HBAvoidDraw"]), seek = bool(Options["HBSeekDraw"]);
+  if ((!avoid && !seek) || !draw_possible(ctx))
+      return d;
+  const int X = ctx.board;
+  const Position& root = ctx.actual.pos(X);
+  MoveList<LEGAL> legal(root);
+  TeamState work;
+  work.assign_light(ctx.actual);
+
+  // Our moves that complete a referee draw, and those after which some reply
+  // of the opponent here (with the pieces they hold) does.
+  // A piece the opponent's partner can capture at once on the other board
+  // counts as held: that is how game 4 of basefix-vs-hm-n1500 was drawn.
+  std::vector<Move> draws, allows;
+  int byArrival = 0;
+  for (const auto& mv : legal)
+  {
+      Move m = mv;
+      TeamUndo u = work.play_undoable(X, m);
+      if (drawn_now(work))
+          draws.push_back(m);
+      else
+      {
+          bool allowed = false;
+          for (const auto& r : MoveList<LEGAL>(work.pos(X)))
+          {
+              TeamUndo u2 = work.play_undoable(X, r);
+              allowed = drawn_now(work);
+              work.undo(u2);
+              if (allowed)
+                  break;
+          }
+          if (!allowed && draw_by_arrival(ctx, work))
+              allowed = true, ++byArrival;
+          if (allowed)
+              allows.push_back(m);
+      }
+      work.undo(u);
+  }
+
+  // Are we losing? The main search on our board, and the partner board's
+  // forecast score where a forecast ran.
+  const bool exact = ctx.main.status == ProbeResult::OK && ctx.main.exact;
+  const int mainCp = exact ? to_cp(ctx.main.score) : 0;
+  const bool havePartner = Fc.ready && !Fc.lines.empty();
+  const int partnerCp = havePartner ? (Fc.moverIsPartner ? Fc.lines[0].score : -Fc.lines[0].score) : 0;
+  const bool notLosing = exact && mainCp >= Coef::AvoidDrawBar && (!havePartner || partnerCp > Coef::AvoidDrawPartnerBar);
+  const bool losing = exact && mainCp <= Coef::SeekDrawBar && !(havePartner && partnerCp >= Coef::PartnerMateCp);
+  const std::string& why = d.reason;
+  const bool wins = why.rfind("team_win", 0) == 0 || why.rfind("delivery_win", 0) == 0;
+  const bool required = wins || why == "exposure_veto" || why == "soft_switch" || why == "stall_deny" || why == "only_move";
+  const bool moveDraws = !d.pass && has(draws, d.move), moveAllows = !d.pass && has(allows, d.move);
+
+  std::ostringstream js;
+  js << "{\"drawing\":" << draws.size() << ",\"allowing\":" << allows.size() << ",\"allowing_by_arrival\":" << byArrival
+     << ",\"move\":" << json_str(d.pass ? "pass" : UCI::move(root, d.move))
+     << ",\"move_draws\":" << (moveDraws ? "true" : "false") << ",\"move_allows\":" << (moveAllows ? "true" : "false")
+     << ",\"main_cp\":" << (exact ? std::to_string(mainCp) : "null")
+     << ",\"partner_cp\":" << (havePartner ? std::to_string(partnerCp) : "null")
+     << ",\"coord_reason\":" << json_str(why);
+  ctx.log.set("draw_drawing", std::to_string(draws.size()));
+  ctx.log.set("draw_allowing", std::to_string(allows.size()));
+  std::string action = "none";
+
+  if (avoid && notLosing && !required && (moveDraws || moveAllows))
+  {
+      // Candidates that neither draw nor allow a draw, are not mated at once
+      // and are not CERTAIN-exposed.
+      std::vector<Move> safe;
+      for (const auto& mv : legal)
+      {
+          Move m = mv;
+          if (has(draws, m) || has(allows, m) || mated_in_one(ctx, work, m))
+              continue;
+          std::string how;
+          if (exposure_tier(ctx, work, m, how) == CERTAIN)
+              continue;
+          safe.push_back(m);
+      }
+      Move pick = MOVE_NONE;
+      std::string source;
+      int pickCp = 0;
+      if (!safe.empty() && !ctx.budget.passthrough())
+      {
+          // The root order carries no scores below the first move, so the
+          // best non-drawing move is found by a root search of the safe set.
+          ProbeResult r = run_main_search(ctx.actual, X, ctx.budget, Phase::RESERVE, &ctx.log, safe, 1, "avoid_draw");
+          if (r.status == ProbeResult::OK && r.finalMove != MOVE_NONE && has(safe, r.finalMove) && r.depth > 0)
+          {
+              pick = r.finalMove, source = "search";
+              pickCp = to_cp(r.exact ? r.score : r.finalScore);
+              js << ",\"search_depth\":" << r.depth;
+          }
+      }
+      if (pick == MOVE_NONE)
+          for (Move m : ctx.main.rootOrder)
+              if (has(safe, m))
+              {
+                  pick = m, source = "root_order", pickCp = Coef::AvoidDrawBar;
+                  break;
+              }
+      js << ",\"safe\":" << safe.size();
+      if (pick != MOVE_NONE)
+          js << ",\"pick\":" << json_str(UCI::move(root, pick)) << ",\"pick_cp\":" << pickCp << ",\"source\":" << json_str(source);
+      // A drawing move is still better than a losing alternative.
+      if (pick != MOVE_NONE && pickCp >= Coef::AvoidDrawBar)
+      {
+          d.move = pick;
+          d.reason = "avoid_draw";
+          action = "avoid_draw";
+          ctx.log.set("override", "1");
+          ctx.log.set("override_source", "avoid_draw");
+      }
+      else
+          action = pick == MOVE_NONE ? "no_safe_alternative" : "alternative_worse";
+  }
+  else if (seek && losing && !wins && !draws.empty() && !moveDraws)
+  {
+      Move pick = MOVE_NONE;
+      for (Move m : ctx.main.rootOrder)
+          if (has(draws, m))
+          {
+              pick = m;
+              break;
+          }
+      if (pick == MOVE_NONE)
+      {
+          std::vector<std::string> ucis;
+          for (Move m : draws)
+              ucis.push_back(UCI::move(root, m));
+          std::sort(ucis.begin(), ucis.end());
+          pick = UCI::to_move(root, ucis.front());
+      }
+      js << ",\"pick\":" << json_str(UCI::move(root, pick));
+      d = Decision();
+      d.move = pick;
+      d.reason = "seek_draw";
+      action = "seek_draw";
+      ctx.log.set("override", "1");
+      ctx.log.set("override_source", "seek_draw");
+  }
+  js << ",\"action\":" << json_str(action) << "}";
+  ctx.log.set("draw_action", action);
+  sync_cout << "info string hb_draw " << js.str() << sync_endl;
+  if (action == "avoid_draw" || action == "seek_draw")
+  {
+      ctx.log.set("coord_reason", action);
+      sync_cout << "info string hb_coord {\"reason\":" << json_str(action) << ",\"draw\":" << js.str() << "}" << sync_endl;
+  }
+  return d;
 }
 
 
@@ -1167,13 +1880,6 @@ struct WaitState {
   int expiryClock = 0;   // our clock value at which the wait expires
 };
 WaitState Wait;
-
-std::string turn_key(const TeamState& ts, int board) {
-  int plies = 0;
-  for (const auto& m : ts.move_list())
-      plies += m.first == board;
-  return std::to_string(plies) + ":" + ts.rep_key(board);
-}
 
 // Conditions for waiting waitMs more. why = first failure.
 //
@@ -1211,6 +1917,11 @@ bool wait_conditions(const CoordinatorContext& ctx, int waitMs, std::string& why
       TeamUndo u = work.play_undoable(pb, p);
       PieceType t = type_of(u.transfer.piece);
       bool win = false;
+      if (drawn_now(work))                        // that capture ends the game drawn
+      {
+          work.undo(u);
+          continue;
+      }
       for (const auto& dm : MoveList<LEGAL>(work.pos(ctx.board)))
           if (type_of(dm) == DROP && in_hand_piece_type(dm) == t)
           {
@@ -1303,14 +2014,49 @@ bool wait_conditions(const CoordinatorContext& ctx, int waitMs, std::string& why
 void reset_wait_state() {
   Wait = WaitState();
   Stall = StallState();
+  Hold = StallState();
+  Timer = TurnTimer();
+}
+
+void note_decision(const TeamState& ts, int board, bool clocksKnown, int ourClockMs, const Decision& d) {
+  if (!d.pass || d.wakeAfterMs <= 0)
+      return;
+  timer_sync(ts, board);
+  if (Timer.used)
+      return;                                 // the arena ignores it
+  Timer.used = true;
+  Timer.clockKnown = clocksKnown;
+  Timer.fireClock = ourClockMs - d.wakeAfterMs;
 }
 
 Decision consider_voluntary_wait(const CoordinatorContext& ctx) {
   Decision d;
+  // A hold on a mated board continues without a new search while nothing has
+  // moved; any move (an arrival) ends it and the position is searched again.
+  if (Hold.active)
+  {
+      // HBHoldRace: a hold that no longer wins the clock race, or has no
+      // wake left before its lead runs out, ends here at a wake with nothing
+      // moved (a time-advantage flip or our timer), and the position is
+      // searched again.
+      std::string no;
+      int wake = 0;
+      bool raceLost = Hold.guarded && race_guard()
+                   && !hold_guard(ctx, Hold.needMs, Hold.free, wake, no);
+      if (unchanged_since(Hold, ctx.actual) && bool(Options["HBHoldWhenMated"]) && !raceLost)
+      {
+          ctx.log.set("wait", "hold_continue");
+          d.pass = true, d.reason = "hold_mated", d.wakeAfterMs = wake;
+          return d;
+      }
+      if (raceLost)
+          ctx.log.set("hold_end", no);
+      Hold.active = false;
+  }
   // A stall holds without a new search while nothing has moved.
   if (Stall.active)
   {
-      if (Stall.moves == ctx.actual.move_count() && stall_ok(ctx))
+      if (unchanged_since(Stall, ctx.actual) && stall_ok(ctx))
       {
           ctx.log.set("wait", "stall_continue");
           d.pass = true, d.reason = "stall_deny";
@@ -1349,6 +2095,13 @@ Decision consider_voluntary_wait(const CoordinatorContext& ctx) {
   if (Wait.used)
   {
       ctx.log.set("wait", "used");
+      return d;
+  }
+  // HBHoldRace: a wait needs its own timer; if this turn's has been spent
+  // (by a hold or a stall), nothing may wake us at its expiry.
+  if (race_guard() && !timer_free(ctx))
+  {
+      ctx.log.set("wait", "skip_timer_used");
       return d;
   }
   if (!wait_conditions(ctx, Coef::WaitMs, why))

@@ -214,6 +214,14 @@ namespace Stockfish::Eval::NNUE {
       return !stream.fail();
     }
 
+    // HypeBeast: recompute the current accumulator from scratch, e.g. after a
+    // hand change that is not a dirty piece (Position::hb_add_to_hand), so
+    // that later positions update from it and not from an earlier state.
+    void hb_refresh(const Position& pos) const {
+      update_accumulator(pos, WHITE, true);
+      update_accumulator(pos, BLACK, true);
+    }
+
     // Convert input features
     std::int32_t transform(const Position& pos, OutputType* output, int bucket) const {
       update_accumulator(pos, WHITE);
@@ -364,7 +372,7 @@ namespace Stockfish::Eval::NNUE {
 
 
    private:
-    void update_accumulator(const Position& pos, const Color perspective) const {
+    void update_accumulator(const Position& pos, const Color perspective, bool forceRefresh = false) const {
 
       // The size must be enough to contain the largest possible update.
       // That might depend on the feature set and generally relies on the
@@ -383,7 +391,7 @@ namespace Stockfish::Eval::NNUE {
       // of the estimated gain in terms of features to be added/subtracted.
       StateInfo *st = pos.state(), *next = nullptr;
       int gain = FeatureSet::refresh_cost(pos);
-      while (st->previous && !st->accumulator.computed[perspective])
+      while (!forceRefresh && st->previous && !st->accumulator.computed[perspective])
       {
         // This governs when a full feature refresh is needed and how many
         // updates are better than just one full refresh.
@@ -394,7 +402,7 @@ namespace Stockfish::Eval::NNUE {
         st = st->previous;
       }
 
-      if (st->accumulator.computed[perspective])
+      if (!forceRefresh && st->accumulator.computed[perspective])
       {
         if (next == nullptr)
           return;

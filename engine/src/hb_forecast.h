@@ -43,6 +43,7 @@ struct ForecastLine {
   std::vector<std::string> pv;    // the plies that were read
   std::vector<std::string> captures; // every capture in them: "<ply><+|-><type>", e.g. "0-N", "3+Q"
   int score = 0;                  // cp for the side to move there
+  Value value = VALUE_NONE;       // the search value behind it (mates kept; HBHoldRace)
   int gain = 0;                   // what the line's captures are worth on our board, same side
   Arrival arrival;                // captures in the first plies: arriving soon
   Arrival later;                  // every capture read, including those

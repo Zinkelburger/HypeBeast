@@ -5,7 +5,8 @@ After every ply the engine is sent the arena's exact position command and
 answers hbstate; every field is compared with referee.py: placement with
 promotion markers, pockets, turn, castling, legal en passant, halfmove and
 fullmove counters, repetition count, check, the full legal move list of
-both boards, mate under both time-advantage values for both teams, draw,
+both boards, mate under both time-advantage values for both teams, draw
+(every third game steers into board repetitions to reach the threefold),
 and the combined verdict. Periodically hbmakeundo runs randomized
 make/undo + incremental-vs-fresh NNUE checks on isolated copies.
 
@@ -55,6 +56,23 @@ def pick_move(game: Bughouse, board: int, rng: random.Random) -> str:
     return rng.choice(moves).uci()
 
 
+def repeat_move(game: Bughouse, board: int, rng: random.Random) -> str | None:
+    """A move that recreates a board already seen (pockets ignored), if any:
+    drives games into the referee's threefold, including drop/capture cycles."""
+    moves = [m.uci() for m in game.boards[board].legal_moves]
+    rng.shuffle(moves)
+    seen_once = None
+    for uci in moves[:40]:
+        after = game.copy()
+        after.push(board, uci)
+        count = after._repetitions[board][after._board_key(board)]
+        if count >= 2:
+            return uci
+        if count >= 1 and seen_once is None:
+            seen_once = uci
+    return seen_once
+
+
 def random_start(rng: random.Random) -> Bughouse:
     """Start position, or a dual FEN reached by random play (real pockets,
     promoted pieces, castling changes) so the fen path is exercised too."""
@@ -101,6 +119,8 @@ def play_one(engine: Engine, seed: int, max_plies: int, makeundo_every: int) -> 
             return False
         return expect["verdict"] == "none"
 
+    # every third game seeks repetitions (shuffles and drop/capture cycles)
+    repeat = seed % 3 == 0
     if not check():
         return stats
     for ply in range(max_plies):
@@ -108,7 +128,7 @@ def play_one(engine: Engine, seed: int, max_plies: int, makeundo_every: int) -> 
         if not boards:
             break
         b = rng.choice(boards)
-        uci = pick_move(game, b, rng)
+        uci = (repeat_move(game, b, rng) if repeat and rng.random() < 0.9 else None) or pick_move(game, b, rng)
         move = chess.Move.from_uci(uci)
         position = game.boards[b]
         stats["promotions"] += bool(move.promotion)
