@@ -52,7 +52,6 @@ struct Table {
   int horizon = 0;          // HBChanceHorizon: 0 plain plies, 1 checks and evasions do not count
   bool stable = false;      // HBChanceStable: no singular extension where the mover may drop an arrival
   bool aspiration = false;  // HBChanceAspiration: root window as wide as the last swing
-  bool verify = false;      // HBChanceVerify: claims from failed-low real moves are re-searched
   bool condition = false;   // HBChanceCondition: a later chance after one not taken is conditional
   bool hold = false;        // HBChanceHold: an arrival goes to the real pocket, dropped now or held
   std::string source;       // "forecast" or "injected"

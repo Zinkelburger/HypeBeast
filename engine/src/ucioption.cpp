@@ -18,6 +18,7 @@
 
 #include <algorithm>
 #include <cassert>
+#include <cstdlib>
 #include <ostream>
 #include <sstream>
 #include <iostream>
@@ -248,21 +249,11 @@ void init(OptionsMap& o) {
   o["HBChanceStable"]        << Option(true);            // no singular extension where the mover may drop an arrival
   o["HBChanceAspiration"]    << Option(false);           // root aspiration window as wide as the last swing of the value
   o["HBAvoidDraw"]           << Option(true);            // not losing: avoid moves that draw or let the opponent draw (referee rules)
-  o["HBTreeRepetition"]      << Option(false);           // the referee's board threefold inside HypeBeast searches
   o["HBSeekDraw"]            << Option(true);            // clearly losing: take an immediate draw if one exists
-  // Price of a piece handed to the opponent (feed prices). Defaults are the
-  // old rule. Nodes=10 Cap=2000 MatePrice=4500 Lost=50 passed 5/7 of
-  // tests/feed_set.py but lost in play (PLAN.md, revision 10), so they stay off.
-  o["HBFeedPriceNodes"]      << Option(0, 0, 100);       // per mille of the go budget per partner-board probe (0: depth-3 probes)
-  o["HBFeedPriceDiv"]        << Option(2, 1, 4);         // measured loss divided by this
-  o["HBFeedPriceCap"]        << Option(500, 0, 2000);    // cp cap of a non-mate price
-  o["HBFeedMatePrice"]       << Option(1500, 0, 9000);   // cp when the piece lets them mate our partner
-  o["HBFeedPriceLost"]       << Option(0, 0, 100);       // % of the piece's value when the partner already looks lost
   // Round-8 coordinator rules (default off): sit when every move is mated on
   // our board and the partner is still in the game; prefer the cheaper feed
-  // among near-equal candidates (cp window, needs a price gap of Margin cp);
-  // a root penalty on castling (cp).
-  o["HBHoldWhenMated"]       << Option(false);
+  // among near-equal candidates (cp window, needs a price gap of Margin cp).
+  o["HBHoldWhenMated"]       << Option(true);
   // HBHoldRace (ms, 0 off): a hold must win the clock race. If both seats
   // sit, our clock runs against the opposing seat on turn on the partner
   // board (the diagonal), and our lead shrinks by every move our partner
@@ -275,14 +266,17 @@ void init(OptionsMap& o) {
   // with Stall and Wait, which then also respect it). Mates within
   // HBHoldFreePlies plies need no partner mate, but the same guard: they sit
   // with a lead, or with the lead gone only through one partner move.
-  o["HBHoldRace"]            << Option(0, 0, 60000);
+  // HBHoldPartnerMate: not mated ourselves, sit while our partner has a
+  // forced mate (forecast) and the same race guard holds: frozen, our board
+  // feeds the seat being mated nothing, and it cannot out-sit us. Needs
+  // HBHoldRace > 0. A seat with a mate of its own plays it.
+  o["HBHoldPartnerMate"]     << Option(true);
+  o["HBHoldRace"]            << Option(250, 0, 60000);
   o["HBHoldFreePlies"]       << Option(2, 0, 20);
   o["HBFeedTieBreak"]        << Option(0, 0, 200);
   o["HBFeedTieMargin"]       << Option(80, 0, 2000);
-  o["HBCastlePenalty"]       << Option(0, 0, 1000);
   o["HBFeedCastleFix"]       << Option(true);            // castling earns no feed price (false: the v5 rule, credited as taking our own rook)
   o["HBFeedEpFix"]          << Option(false);           // quiescence prices en passant as a pawn capture (false: as nothing)
-  o["HBChanceVerify"]        << Option(false);           // re-search the real moves before trusting a drop over a fail-low
   o["HBChanceCondition"]     << Option(false);           // after a chance not taken, a later one uses P(arrived | not before)
   o["HBChanceHold"]          << Option(false);           // an arrival goes to the real pocket: dropped now or held (implies the conditioning)
   o["HBChancePlies"]         << Option(4, 1, 8);         // search plies 1..N where arrivals can be dropped
@@ -298,6 +292,31 @@ void init(OptionsMap& o) {
 }
 
 
+namespace {
+
+// The HypeBeast options `uci` lists: the ones a user sets, and the switches
+// that turn a version's rules off again. Every other HB* option is a fitted
+// value or an experiment that is off: it can still be set, but it is listed
+// only with HB_EXPERIMENTAL=1 in the environment (the match scripts and the
+// tests set it; the arena refuses to send an option that is not listed).
+// docs/OPTIONS.md describes them all.
+bool listed(const std::string& name) {
+  static const char* const Public[] = { "HBFeedPrices", "HBStall", "HBWorlds", "HBChance", "HBAvoidDraw",
+                                        "HBSeekDraw", "HBFeedCastleFix", "HBHoldWhenMated", "HBHoldPartnerMate" };
+  if (name.compare(0, 2, "HB") != 0)
+      return true;
+  for (const char* p : Public)
+      if (name == p)
+          return true;
+  static const bool all = [] {
+      const char* e = std::getenv("HB_EXPERIMENTAL");
+      return e && *e && std::string(e) != "0";
+  }();
+  return all;
+}
+
+} // namespace
+
 /// operator<<() is used to print all the options default values in chronological
 /// insertion order (the idx field) and in the format defined by the UCI protocol.
 
@@ -307,7 +326,7 @@ std::ostream& operator<<(std::ostream& os, const OptionsMap& om) {
   {
       for (size_t idx = 0; idx < om.size(); ++idx)
           for (const auto& it : om)
-              if (it.second.idx == idx && it.first != "UCI_Variant" && it.first != "Threads" && it.first != "Hash")
+              if (it.second.idx == idx && it.first != "UCI_Variant" && it.first != "Threads" && it.first != "Hash" && listed(it.first))
               {
                   const Option& o = it.second;
                   os << "\nfeature option=\"" << it.first << " -" << o.type;
@@ -336,7 +355,7 @@ std::ostream& operator<<(std::ostream& os, const OptionsMap& om) {
 
   for (size_t idx = 0; idx < om.size(); ++idx)
       for (const auto& it : om)
-          if (it.second.idx == idx)
+          if (it.second.idx == idx && listed(it.first))
           {
               const Option& o = it.second;
               // UCI dialects do not allow spaces

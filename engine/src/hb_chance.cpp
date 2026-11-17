@@ -103,7 +103,6 @@ void read_options() {
   T.horizon = int(Options["HBChanceHorizon"]);
   T.stable = bool(Options["HBChanceStable"]);
   T.aspiration = bool(Options["HBChanceAspiration"]);
-  T.verify = bool(Options["HBChanceVerify"]);
   T.condition = bool(Options["HBChanceCondition"]);
   T.hold = bool(Options["HBChanceHold"]);
 }

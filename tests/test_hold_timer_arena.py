@@ -219,7 +219,7 @@ def scenario_free(args) -> None:
 
 def main() -> int:
     ap = argparse.ArgumentParser()
-    ap.add_argument("--bin", default=str(ROOT / "bin/hypebeast-chance13"))
+    ap.add_argument("--bin", default=str(ROOT / "bin/hypebeast"))
     ap.add_argument("--nodes", type=int, default=1_500_000)
     ap.add_argument("--scenario", default="timer,free")
     args = ap.parse_args()

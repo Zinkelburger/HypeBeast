@@ -116,10 +116,6 @@ namespace {
   template <NodeType nodeType>
   Value chance_pass(Position& pos, Stack* ss, Value alpha, Value beta, Depth depth, Value vno, bool& raised);
 
-  // HypeBeast chance (HBChanceVerify): the node whose real moves are being
-  // re-searched without the drop pass, under a salted TT key.
-  thread_local Stack* ChanceVerifySS = nullptr;
-  constexpr Key ChanceVerifySalt = 0x9E3779B97F4A7C15ULL;
   // HBChanceHold: the node being searched again with an arrival in the real
   // pocket, and its line state (the parent's, with the side's arrived bit).
   thread_local Stack* ChanceHoldSS = nullptr;
@@ -127,48 +123,6 @@ namespace {
 
   template <NodeType nodeType>
   Value chance_arrive(Position& pos, Stack* ss, PieceType pt, double p, Value T, Value vnoU, Value beta, Depth depth);
-  // HBCastlePenalty: the root's own entry holds penalized values, which the
-  // same position below the root (no penalty there) must not read.
-  constexpr Key CastleRootSalt = 0xC2B2AE3D27D4EB4FULL;
-
-  // HBCastlePenalty at the root: a castling move's value v (searched as usual)
-  // counts as castle_penalized(v): v - P for a finite v, floored above the
-  // TB/mate range, a mate score unchanged. castle_window(t) is the largest v
-  // with castle_penalized(v) <= t, so the child is searched with the window
-  // (castle_window(alpha), castle_window(beta - 1) + 1) and its bounds mean
-  // the same against alpha and beta after the penalty.
-  Value castle_penalized(Value v) {
-    return std::abs(v) < VALUE_TB_WIN_IN_MAX_PLY ? std::max(v - HB::CastlePenalty, VALUE_TB_LOSS_IN_MAX_PLY + 1) : v;
-  }
-  Value castle_window(Value t) {
-    return std::abs(t) < VALUE_TB_WIN_IN_MAX_PLY ? std::min(t + HB::CastlePenalty, VALUE_TB_WIN_IN_MAX_PLY - 1) : t;
-  }
-
-  // HypeBeast HBTreeRepetition: is this node's board (pockets ignored) the
-  // referee's threefold, counting the real game (RepHist) and the line from
-  // the search root? Exact rule, no in-tree twofold shortcut: repeating a
-  // drop/capture cycle again needs pieces that may not come, so only what
-  // the referee would rule if the line were played counts. A line through a
-  // null move is not a game line and never counts.
-  bool hb_board_threefold(const Position& pos, const Stack* ss) {
-    if (pos.state()->pliesFromNull < ss->ply)
-        return false;
-    const Key k = ss->hbBoardKey;
-    int n = 1;
-    if (HB::RepHist && (HB::RepFilter[(k >> 6) & 63] & (1ULL << (k & 63))))
-    {
-        auto it = HB::RepHist->find(k);
-        if (it != HB::RepHist->end())
-            n += it->second;
-    }
-    // The search root is already counted when it is the real position
-    const bool rootCounted = HB::RepHist && (ss - ss->ply)->hbBoardKey == HB::RepRootKey;
-    for (int i = 2; i <= ss->ply && n < 3; i += 2)
-        if ((ss - i)->hbBoardKey == k && !(i == ss->ply && rootCounted))
-            ++n;
-    return n >= 3;
-  }
-
   // HypeBeast chance: could the side to move drop an arrival here?
   bool chance_eligible(const Position& pos, const Stack* ss) {
     if (HB::Chance::T.hold)
@@ -926,15 +880,6 @@ namespace {
             return (ss->ply >= MAX_PLY && !ss->inCheck) ? evaluate(pos)
                                                         : value_draw(pos.this_thread());
 
-        // HypeBeast: the referee's board threefold (before any TT use, as
-        // upstream treats repetitions: the value is path dependent)
-        if (HB::TreeRep)
-        {
-            ss->hbBoardKey = pos.board_key();
-            if (hb_board_threefold(pos, ss))
-                return VALUE_DRAW;
-        }
-
         // Step 3. Mate distance pruning. Even if we mate at the next move our score
         // would be at best mate_in(ss->ply+1), but if alpha is already bigger because
         // a shorter mate was found upward in the tree then there is no need to search
@@ -948,9 +893,6 @@ namespace {
     }
 
     assert(0 <= ss->ply && ss->ply < MAX_PLY);
-
-    if (rootNode && HB::TreeRep)
-        ss->hbBoardKey = pos.board_key();
 
     // HypeBeast chance: the window before the move loop raises alpha
     const Value alphaOrig = alpha;
@@ -992,10 +934,6 @@ namespace {
         else if (HB::Chance::T.condition && !rootNode)
             ss->hbOffer = chance_offer(pos, ss);
     }
-    if (ss == ChanceVerifySS)
-        posKey ^= ChanceVerifySalt;
-    if (rootNode && HB::CastlePenalty)
-        posKey ^= CastleRootSalt;
     tte = TT.probe(posKey, ss->ttHit);
     ttValue = ss->ttHit ? value_from_tt(tte->value(), ss->ply, pos.rule50_count()) : VALUE_NONE;
     ttMove =  rootNode ? thisThread->rootMoves[thisThread->pvIdx].pv[0]
@@ -1517,12 +1455,6 @@ moves_loop: // When in check, search starts from here
                                                                 [history_slot(movedPiece)]
                                                                 [to_sq(move)];
 
-      // HypeBeast HBCastlePenalty: a castling move at the root is searched
-      // with the window translated to its unpenalized value (see castle_window)
-      const bool castlePenalized = rootNode && HB::CastlePenalty && type_of(move) == CASTLING;
-      const Value cAlpha = castlePenalized ? castle_window(alpha) : alpha;
-      const Value cBeta  = castlePenalized ? castle_window(beta - 1) + 1 : beta;
-
       // Step 15. Make the move
       pos.do_move(move, st, givesCheck);
 
@@ -1593,10 +1525,10 @@ moves_loop: // When in check, search starts from here
           // to be searched deeper than the first move, unless ttMove was extended by 2.
           Depth d = std::clamp(newDepth - r, 1, newDepth + (r < -1 && moveCount <= 5 && !doubleExtension));
 
-          value = -search<NonPV>(pos, ss+1, -(cAlpha+1), -cAlpha, d, true);
+          value = -search<NonPV>(pos, ss+1, -(alpha+1), -alpha, d, true);
 
           // If the son is reduced and fails high it will be re-searched at full depth
-          doFullDepthSearch = value > cAlpha && d < newDepth;
+          doFullDepthSearch = value > alpha && d < newDepth;
           didLMR = true;
       }
       else
@@ -1608,12 +1540,12 @@ moves_loop: // When in check, search starts from here
       // Step 17. Full depth search when LMR is skipped or fails high
       if (doFullDepthSearch)
       {
-          value = -search<NonPV>(pos, ss+1, -(cAlpha+1), -cAlpha, newDepth, !cutNode);
+          value = -search<NonPV>(pos, ss+1, -(alpha+1), -alpha, newDepth, !cutNode);
 
           // If the move passed LMR update its stats
           if (didLMR && !captureOrPromotion)
           {
-              int bonus = value > cAlpha ?  stat_bonus(newDepth)
+              int bonus = value > alpha ?  stat_bonus(newDepth)
                                         : -stat_bonus(newDepth);
 
               update_continuation_histories(ss, movedPiece, to_sq(move), bonus);
@@ -1623,22 +1555,17 @@ moves_loop: // When in check, search starts from here
       // For PV nodes only, do a full PV search on the first move or after a fail
       // high (in the latter case search only if value < beta), otherwise let the
       // parent node fail low with value <= alpha and try another move.
-      if (PvNode && (moveCount == 1 || (value > cAlpha && (rootNode || value < cBeta))))
+      if (PvNode && (moveCount == 1 || (value > alpha && (rootNode || value < beta))))
       {
           (ss+1)->pv = pv;
           (ss+1)->pv[0] = MOVE_NONE;
 
-          value = -search<PV>(pos, ss+1, -cBeta, -cAlpha,
+          value = -search<PV>(pos, ss+1, -beta, -alpha,
                               std::min(maxNextDepth, newDepth), false);
       }
 
       // Step 18. Undo move
       pos.undo_move(move);
-
-      // HypeBeast HBCastlePenalty: castling scores less at the root of our
-      // board's searches (mate scores are left alone, finite values stay finite)
-      if (castlePenalized)
-          value = castle_penalized(value);
 
       assert(value > -VALUE_INFINITE && value < VALUE_INFINITE);
 
@@ -1753,7 +1680,6 @@ moves_loop: // When in check, search starts from here
         && !excludedMove
         && depth >= 2 - HB::Chance::T.hold
         && ss->hbPly <= HB::Chance::T.plies
-        && ss != ChanceVerifySS
         && bestValue < beta)
     {
         const Move curMove = ss->currentMove;
@@ -1804,36 +1730,6 @@ moves_loop: // When in check, search starts from here
   // Approximation: a fail-soft vno that is only an upper bound is used as if
   // it were exact. Candidate drops are bounded: checking drops, then drops
   // next to the enemy king, then (in check) the remaining interpositions.
-
-  // Smallest real-move value y <= hi with mix(p, vd, y) >= claim, or
-  // VALUE_NONE if not even hi gets there.
-  Value chance_needed(double p, Value vd, Value hi, Value claim) {
-    if (HB::Chance::mix(p, vd, hi) < claim)
-        return VALUE_NONE;
-    Value lo = -VALUE_MATE;
-    while (lo < hi)
-    {
-        Value mid = Value(int(lo) + (int(hi) - int(lo)) / 2);
-        if (HB::Chance::mix(p, vd, mid) >= claim)
-            hi = mid;
-        else
-            lo = mid + 1;
-    }
-    return lo;
-  }
-
-  // HBChanceVerify: do the real moves of this node reach x? A null-window
-  // search of the same node at the same depth, with its own drop pass off and
-  // a salted TT key, so its entries never stand in for the node's own.
-  Value chance_verify(Position& pos, Stack* ss, Value x, Depth depth) {
-    const Stack saved = *ss;
-    Stack* const prev = ChanceVerifySS;
-    ChanceVerifySS = ss;
-    Value t = search<NonPV>(pos, ss, x - 1, x, depth, false);
-    ChanceVerifySS = prev;
-    *ss = saved;
-    return t;
-  }
 
   // HBChanceHold: the value of this node when a pt has just arrived for the
   // side to move: the piece goes to the real pocket and the node is searched
@@ -1972,11 +1868,6 @@ moves_loop: // When in check, search starts from here
     Move pv[MAX_PLY+1];
     Move cands[64];
     Value best = vno, upper = vno;
-    // Bounds on the real moves' value. A fail-soft vno at or below alpha is
-    // only an upper bound; with HBChanceVerify a claim that relies on it is
-    // re-searched first, and vnoU/vnoL tighten as the re-searches answer.
-    const bool verify = C::T.verify && vno <= alpha;
-    Value vnoU = vno, vnoL = verify ? -VALUE_INFINITE : vno;
     const Bitboard empty =  ~pos.pieces() & pos.board_bb()
                           & (checkers ? between_bb(pos.square<KING>(us), lsb(checkers)) : AllSquares);
     const Bitboard near = attacks_bb<KING>(pos.square<KING>(~us));
@@ -1985,13 +1876,13 @@ moves_loop: // When in check, search starts from here
     {
         const PieceType pt = types[i];
         const double p = probs[i];
-        Value T = C::threshold(p, vnoU, target);
+        Value T = C::threshold(p, vno, target);
         if (T == VALUE_NONE)
         {
             // HBChanceHold: even an arrival that mates leaves the node at
             // most here (a fail-soft bound, never below the node's value)
             if (hold)
-                upper = std::max(upper, C::mix(p, VALUE_MATE, vnoU));
+                upper = std::max(upper, C::mix(p, VALUE_MATE, vno));
             continue;
         }
 
@@ -2016,7 +1907,6 @@ moves_loop: // When in check, search starts from here
                     cands[nc++] = make_drop(pop_lsb(b), pt, pt);
         }
 
-        int retries = 0;
         for (int j = 0; j < nc; ++j)
         {
             const Move m = cands[j];
@@ -2024,7 +1914,7 @@ moves_loop: // When in check, search starts from here
             if (hold)
             {
                 ++thisThread->hbChanceDrops;
-                v = chance_arrive<nodeType>(pos, ss, pt, p, T, vnoU, beta, depth);
+                v = chance_arrive<nodeType>(pos, ss, pt, p, T, vno, beta, depth);
             }
             else
             {
@@ -2048,7 +1938,7 @@ moves_loop: // When in check, search starts from here
             // At PV nodes an exact value for a drop that matters
             if (PvNode && v >= T && !Threads.stop.load(std::memory_order_relaxed))
             {
-                Value hi = C::threshold(p, vnoU, beta - 1);
+                Value hi = C::threshold(p, vno, beta - 1);
                 Value childBeta = hi == VALUE_NONE ? VALUE_INFINITE : hi;
                 (ss+1)->pv = pv;
                 (ss+1)->pv[0] = MOVE_NONE;
@@ -2060,65 +1950,14 @@ moves_loop: // When in check, search starts from here
             if (Threads.stop.load(std::memory_order_relaxed))
                 break;
 
-            Value mixed = C::mix(p, v, vnoU);
-            if (v >= T && verify)
-            {
-                // The claim: beta at a cutoff, else (PV) the mixed value. It
-                // holds only if the real moves reach x.
-                const Value claim = std::min(mixed, beta);
-                const Value x = chance_needed(p, v, vnoU, claim);
-                bool ok = x != VALUE_NONE;
-                if (ok && x > vnoL && x > mated_in(ss->ply))
-                {
-                    ++thisThread->hbChanceVerify;
-                    const uint64_t vn0 = thisThread->nodes.load(std::memory_order_relaxed);
-                    Value t = chance_verify(pos, ss, x, depth);
-                    thisThread->hbChanceVerifyNodes += thisThread->nodes.load(std::memory_order_relaxed) - vn0;
-                    if (Threads.stop.load(std::memory_order_relaxed))
-                        break;
-                    if (t >= x)
-                        vnoL = x;
-                    else
-                    {
-                        ++thisThread->hbChanceVerifyFail;
-                        vnoU = std::min(vnoU, t);
-                        ok = false;
-                    }
-                }
-                if (ok)
-                    mixed = C::mix(p, v, x);   // a lower bound >= claim (exact at PV)
-                else
-                {
-                    // Test the drop again against the lower real-move bound
-                    T = C::threshold(p, vnoU, target);
-                    if (T == VALUE_NONE)
-                    {
-                        // even a mate of this type cannot lift the node now
-                        upper = std::max(upper, std::min(target, C::mix(p, VALUE_MATE, vnoU)));
-                        break;
-                    }
-                    if (retries < 2)
-                    {
-                        ++retries;
-                        --j;
-                        continue;
-                    }
-                    // Unresolved: the drop beats the threshold but the real
-                    // moves never confirm the claim. Counted as not lifting.
-                    ++thisThread->hbChanceUnresolved;
-                    upper = std::max(upper, target);
-                    retries = 0;
-                    continue;
-                }
-            }
-            retries = 0;
+            const Value mixed = C::mix(p, v, vno);
             if (v >= T)
             {
                 best = std::max(best, mixed);
                 if (best >= beta)
                     break;
                 target = std::max(target, best);
-                T = C::threshold(p, vnoU, target);
+                T = C::threshold(p, vno, target);
                 if (T == VALUE_NONE)
                     break;
             }
@@ -2175,13 +2014,6 @@ moves_loop: // When in check, search starts from here
     Value gameResult;
     if (pos.is_game_end(gameResult, ss->ply))
         return gameResult;
-
-    if (HB::TreeRep)
-    {
-        ss->hbBoardKey = pos.board_key();
-        if (hb_board_threefold(pos, ss))
-            return VALUE_DRAW;
-    }
 
     // Check for maximum ply reached
     if (ss->ply >= MAX_PLY)

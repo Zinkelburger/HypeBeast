@@ -65,6 +65,9 @@ PAIRS=${4:-50}
 NODES=${5:-500000}
 CONCURRENCY=${6:-8}
 export HYPEBEAST_HOME=${HYPEBEAST_HOME:-$HB}
+# The engine lists its tuning and experimental options only with this set,
+# and the arena sends an Option=value only when the option is listed.
+export HB_EXPERIMENTAL=${HB_EXPERIMENTAL:-1}
 TOOLS=${ARENA_TOOLS:-${HB_ARENA_TOOLS:-$HB/upstream/cap-dev/tools}}
 OPENINGS=${OPENINGS:-$HB/openings/dev100.txt}
 if [[ -z ${SEARCH_TIMEOUT:-} ]]; then

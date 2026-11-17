@@ -56,7 +56,6 @@ struct Stack {
   int hbPly;              // HypeBeast chance: effective ply (HBChanceHorizon)
   uint32_t hbSeen;        // HBChanceCondition: chances offered earlier on this line (Chance::seen_shift)
   uint32_t hbOffer;       // HBChanceCondition: this node's chances, inherited by its children
-  Key hbBoardKey;         // HypeBeast HBTreeRepetition: Position::board_key() of this node
 };
 
 

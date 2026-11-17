@@ -26,6 +26,10 @@ likely to arrive from the other board.
   the player who receives it on the other board.
 - **Exposure and stalling.** A move that lets the opponent's partner feed a
   mating drop is avoided, or the seat sits when the clocks allow it.
+- **Holding (v7).** A seat that is mated whatever it plays sits instead of
+  moving into the mate, and a seat whose partner has a forced mate sits so
+  that its own board hands the defender nothing. Both only while its clock
+  outlasts the opposing seat it races, which can sit too.
 
 `PLAN.md` has the design, the reasons and every measurement.
 
@@ -44,6 +48,7 @@ the search took) and are small. Treat them as screens.
 | v5's chance settings (chance2 build) against v4 source, 100 held-out games, 500k nodes | 67–31–2, Elo +131 (95% +73 to +197) |
 | v5 against HiveMind at 5000 nodes, 20 games | 13–7, 65.0% (95% 48.0% to 78.9%) |
 | v6's change (castling earns no feed price) against v5, 100 held-out games, 500k nodes | 61–38–1, Elo +81 (95% +12 to +151) |
+| v7 (holds on) against v6, 32 games, 500k nodes: a check that nothing breaks, too small to measure | 17–15, no game ended on the clock |
 
 ## Download and run
 
@@ -83,12 +88,14 @@ go movetime 5000
   does not play, or for both when it chooses to sit.
 - `go movetime` and `go nodes` are supported. Searches under 500 ms or
   200,000 nodes skip the forecast, and with it the chance search.
-- v5's settings are the defaults (`HBChance`, `HBChanceStable`,
-  `HBChanceHorizon=1`, the fitted `HBChanceTrust*`/`Late*`/`Floor*` values,
-  `HBAvoidDraw`, `HBSeekDraw`). `HBChance=false HBAvoidDraw=false
-  HBSeekDraw=false` plays exactly as v4.
-- v6 adds `HBFeedCastleFix` (on): castling is no longer priced as handing a
-  rook to the partner. `HBFeedCastleFix=false` plays exactly as v5.
+- The defaults are the strongest settings measured; nothing needs setting
+  beyond the lines above. `uci` lists the options a user sets and one switch
+  per version's rules (`HBChance`, `HBAvoidDraw`, `HBSeekDraw` for v5,
+  `HBFeedCastleFix` for v6, `HBHoldWhenMated`, `HBHoldPartnerMate` for v7).
+  Fitted values and experiments that are off are listed only with
+  `HB_EXPERIMENTAL=1` in the environment. `docs/OPTIONS.md` describes every
+  option and how to play as an earlier version; `docs/REJECTED.md` records
+  the ideas that were measured and removed.
 
 Without `HypeBeast=true` the binary is ordinary Fairy-Stockfish, and it still
 reports itself as Fairy-Stockfish in `id name`.
@@ -113,6 +120,9 @@ the draw policy on crafted and real positions. `tests/loss_set.py` and
 `tests/feed_set.py` replay decisive positions from lost games (the feed set:
 seven moves that handed HiveMind's side the mating piece);
 `tests/flag_report.py` sorts out games that ended on the clock.
+`tests/test_hold_race.py`, `tests/test_hold_timer_arena.py` and
+`tests/test_hold_partner.py` check the holds and their clock race;
+`tests/hold_set.py` replays the holds of games lost on the flag.
 `scripts/run_hivemind_benchmark.sh` and `scripts/hm_match.sh` play a binary
 against HiveMind through the arena. The arena needs a local patch for
 HiveMind's occasional `bestmove (none)`; PLAN.md (revision 10) describes it.

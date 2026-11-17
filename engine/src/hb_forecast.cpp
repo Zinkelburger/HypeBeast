@@ -235,7 +235,6 @@ Forecast make_forecast(CoordinatorContext& ctx) {
   // ---- the partner board's best lines
   ProbeRequest req;
   req.fen = ctx.actual.fen(Y);
-  req.set_history(ctx.actual, Y);
   req.phase = Phase::DISCOVERY;
   req.clear = true;
   req.multiPV = Coef::ForecastLines;
@@ -307,7 +306,6 @@ Forecast make_forecast(CoordinatorContext& ctx) {
       for (const auto& mv : MoveList<LEGAL>(px))
           legalX.push_back(UCI::move(px, mv));
       ProbeRequest pr;
-      pr.set_history(ctx.actual, X);
       pr.phase = Phase::DISCOVERY;
       pr.depth = Coef::ForecastPriceDepth;
       pr.searchMoves = legalX;

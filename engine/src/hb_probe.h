@@ -105,12 +105,6 @@ struct ProbeRequest {
   size_t multiPV = 0;                     // >1: every line gets an exact score and a PV
   bool fed = false;                       // apply this go's feed prices (our board only)
   std::string tag;                        // label for the decision log
-  // HBTreeRepetition: the real game's board-key counts of the board this FEN
-  // belongs to, and that board's current key (set_history()). nullptr: the
-  // search counts repetitions inside its own line only.
-  const std::unordered_map<Key, int>* repHist = nullptr;
-  Key repRoot = 0;
-  void set_history(const TeamState& ts, int board);
 };
 
 /// Result of a main or child search. Scores are internal Values from the

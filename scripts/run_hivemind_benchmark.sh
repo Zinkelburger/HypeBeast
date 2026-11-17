@@ -18,6 +18,8 @@
 # Run again with the same arguments to continue an interrupted match. The log is
 # logs/<name>-vs-hivemind-n<nodes>.log, the match directory the same without .log.
 set -uo pipefail
+# list the engine's tuning and experimental options too (the arena sends only listed ones)
+export HB_EXPERIMENTAL=${HB_EXPERIMENTAL:-1}
 HB=$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)
 ARENA=${ARENA:-$HOME/Projects/Chess-Auto-Prep}
 BIN=${1:?usage: run_hivemind_benchmark.sh BINARY [PAIRS]}

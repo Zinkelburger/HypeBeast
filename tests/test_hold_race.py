@@ -103,7 +103,7 @@ def board_b_turn(args, item: dict, opts: dict) -> None:
 
 def main() -> int:
     ap = argparse.ArgumentParser()
-    ap.add_argument("--bin", default=str(ROOT / "bin/hypebeast-chance13"))
+    ap.add_argument("--bin", default=str(ROOT / "bin/hypebeast"))
     ap.add_argument("--nodes", type=int, default=4_500_000)
     args = ap.parse_args()
     item = next(i for i in json.loads((ROOT / "openings/hold_set.json").read_text())

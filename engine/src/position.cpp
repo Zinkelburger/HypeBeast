@@ -37,11 +37,6 @@ using std::string;
 namespace Stockfish {
 
 namespace HB {
-  bool  TreeRep = false;
-  const std::unordered_map<Key, int>* RepHist = nullptr;
-  Key   RepRootKey = 0;
-  uint64_t RepFilter[64] = {};
-  int   CastlePenalty = 0;
   bool  FrozenHands = false;
   bool  FedActive = false;
   Color FedRoot = WHITE;
@@ -58,7 +53,6 @@ namespace Zobrist {
   Key side, noPawns;
   Key inHand[PIECE_NB][SQUARE_NB];
   Key inHandNeg[PIECE_NB][8];   // HypeBeast: hand counts -1..-7 (virtual pieces of the chance search)
-  Key emptyHands;               // XOR of inHand[pc][0] over every piece: the hand part of empty hands
   Key checks[COLOR_NB][CHECKS_NB];
   Key wall[SQUARE_NB];
   Key endgame[EG_EVAL_NB];
@@ -210,11 +204,6 @@ void Position::init() {
 
   for (Square s = SQ_A1; s <= SQ_MAX; ++s)
       Zobrist::wall[s] = rng.rand<Key>();
-
-  Zobrist::emptyHands = 0;
-  for (Color c : {WHITE, BLACK})
-      for (PieceType pt = PAWN; pt <= KING; ++pt)
-          Zobrist::emptyHands ^= Zobrist::inHand[make_piece(c, pt)][0];
 
   // Own generator, so that no existing key changes
   PRNG rngNeg(0x48424e6567ULL);
@@ -679,29 +668,6 @@ void Position::hb_remove_from_hand(Piece pc) {
   if (piece_drops() || seirawan_gating())
       st->key ^= hand_key(pc, pieceCountInHand[c][pt]);
   st->accumulator.computed[WHITE] = st->accumulator.computed[BLACK] = false;
-}
-
-
-/// Position::board_key() is the hash key without the hand part: the key of
-/// the referee's repetition rule, which ignores the pockets. Same XOR as
-/// set_state(), with the empty-hand constant for the types not in hand.
-
-Key Position::board_key() const {
-
-  Key k = st->key;
-  if (piece_drops() || seirawan_gating())
-  {
-      k ^= Zobrist::emptyHands;
-      for (Color c : {WHITE, BLACK})
-          for (PieceSet ps = piece_types(); ps;)
-          {
-              PieceType pt = pop_lsb(ps);
-              int n = pieceCountInHand[c][pt];
-              if (n)
-                  k ^= hand_key(make_piece(c, pt), n) ^ Zobrist::inHand[make_piece(c, pt)][0];
-          }
-  }
-  return k;
 }
 
 

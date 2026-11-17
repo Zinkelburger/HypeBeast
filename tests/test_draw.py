@@ -18,11 +18,6 @@ Off must reproduce the drawing line; on must choose a move after which the
 python referee finds no draw, neither at once nor after any reply on our board
 (for game 4 also after the game's partner-board continuation). The seek-draw
 case is game 4 from HiveMind's side: Black, lost, may draw with P@g4.
-
-HBTreeRepetition (the rule inside the search), with both root checks off:
-the main search itself must avoid the draw in games 13 and 14 and take it in
-the seek case. Game 4 is out of its reach: the drawing pawn is not in Black's
-hand yet, so only the root check (which counts an immediate arrival) sees it.
 """
 
 from __future__ import annotations
@@ -173,21 +168,6 @@ def main() -> int:
     h = g.copy()
     h.push(0, off)
     check(not h.is_draw(), "seek off: no draw", f"off={off}")
-
-    # the rule in the tree, root checks off
-    tree = {"HBAvoidDraw": "false", "HBSeekDraw": "false", "HBTreeRepetition": "true"}
-    for name in ("game13", "game14"):
-        it = GAMES[name]
-        board = 0 if it["seat"][0] == "A" else 1
-        move, _ = decide(it["prefix"], it["seat"], it["clocks"], it["advantage"], tree)
-        g = game_after(it["prefix"])
-        g.push(board, move)
-        check(not g.is_draw() and drawing_reply(g, board) is None,
-              f"{name} tree: the main search avoids the draw", f"move={move}")
-    move, _ = decide(prefix, "Ablack", clocks, False, tree)
-    h = game_after(prefix)
-    h.push(0, move)
-    check(h.is_draw(), "seek tree: the main search, lost, takes the draw", f"move={move}")
 
     print(f"{failures} failure(s)")
     return 1 if failures else 0

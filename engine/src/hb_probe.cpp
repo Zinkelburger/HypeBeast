@@ -242,29 +242,6 @@ bool Budget::grant(Phase p, uint64_t& nodes, TimePoint& movetimeMs) const {
 
 void set_feed_prices_planned(bool on) { FedPlanned = on; }
 
-void ProbeRequest::set_history(const TeamState& ts, int board) {
-  repHist = &ts.board_key_counts(board);
-  repRoot = ts.pos(board).board_key();
-}
-
-namespace {
-
-// RAII: the board-repetition context of one HypeBeast search
-struct RepScope {
-  RepScope(const std::unordered_map<Key, int>* hist, Key root) {
-      TreeRep = FrozenHands && bool(Options["HBTreeRepetition"]);
-      RepHist = hist;
-      RepRootKey = root;
-      std::fill(RepFilter, RepFilter + 64, 0);
-      if (hist)
-          for (const auto& kv : *hist)
-              RepFilter[(kv.first >> 6) & 63] |= 1ULL << (kv.first & 63);
-  }
-  ~RepScope() { TreeRep = false, RepHist = nullptr, RepRootKey = 0; }
-};
-
-} // namespace
-
 // ------------------------------------------------------------- main search
 
 ProbeResult run_main_search(const TeamState& ts, int board, Budget& budget,
@@ -341,32 +318,23 @@ ProbeResult run_main_search(const TeamState& ts, int board, Budget& budget,
   Threads.main()->callsCnt = 0;
   FedActive = FedPlanned;
   Chance::Active = Chance::Planned;
-  {
-  RepScope rep(&ts.board_key_counts(board), actual.board_key());
-  CastlePenalty = int(Options["HBCastlePenalty"]) * PawnValueEg / 100;
   Threads.start_thinking(const_cast<Position&>(actual), states, limits);
   if (Budget::cancelled())
       Threads.stop = true;
   Threads.main()->wait_for_search_finished();
-  }
   FedActive = false;
   Search::HBHook = saved;
   if (Chance::Active)
   {
-      uint64_t passes = 0, drops = 0, raised = 0, cuts = 0, inDrops = 0, ver = 0, verFail = 0, unres = 0, verNodes = 0;
+      uint64_t passes = 0, drops = 0, raised = 0, cuts = 0, inDrops = 0;
       for (Thread* th : Threads)
           passes += th->hbChancePasses, drops += th->hbChanceDrops, raised += th->hbChanceRaised,
-          cuts += th->hbChanceCuts, inDrops += th->hbChanceNodes,
-          ver += th->hbChanceVerify, verFail += th->hbChanceVerifyFail, unres += th->hbChanceUnresolved,
-          verNodes += th->hbChanceVerifyNodes;
+          cuts += th->hbChanceCuts, inDrops += th->hbChanceNodes;
       uint64_t total = Threads.nodes_searched();
       std::ostringstream cs;
       cs << "{\"tag\":\"" << tag << "\",\"nodes\":" << total << ",\"drop_nodes\":" << inDrops
          << ",\"passes\":" << passes << ",\"drops\":" << drops << ",\"raised\":" << raised
          << ",\"cuts\":" << cuts;
-      if (Chance::T.verify)
-          cs << ",\"verify\":" << ver << ",\"verify_fail\":" << verFail << ",\"unresolved\":" << unres
-             << ",\"verify_nodes\":" << verNodes;   // inclusive; nested verifications count twice
       cs << "}";
       sync_cout << "info string hb_chance_stats " << cs.str() << sync_endl;
       if (log)
@@ -376,7 +344,6 @@ ProbeResult run_main_search(const TeamState& ts, int board, Budget& budget,
       }
   }
   Chance::Active = false;
-  CastlePenalty = 0;
 
   r.status = ProbeResult::OK;
   fill_result(r, actual, limits.depth);
@@ -497,17 +464,11 @@ ProbeResult ChildWorker::run(const ProbeRequest& req, Budget& budget, DecisionLo
       Search::HBHook.multiPV = req.multiPV;
       Threads.main()->callsCnt = 0;
       FedActive = req.fed && FedPlanned;
-      {
-      RepScope rep(req.repHist, req.repRoot);
-      // our board's world searches (fed) score castling like the main search
-      CastlePenalty = req.fed ? int(Options["HBCastlePenalty"]) * PawnValueEg / 100 : 0;
       Threads.start_thinking(p, states, limits);
       if (Budget::cancelled())
           Threads.stop = true;
       Threads.main()->wait_for_search_finished();
-      }
       FedActive = false;
-      CastlePenalty = 0;
 
       r.status = ProbeResult::OK;
       fill_result(r, p, req.depth);

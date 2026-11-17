@@ -33,6 +33,11 @@ NET = Path(os.environ.get("HB_NET", ROOT / "nets/bughouse-cd8cceab93fe.nnue"))
 
 SEATS = ("Awhite", "Ablack", "Bwhite", "Bblack")
 
+# The engine lists its tuning and experimental HB* options only with this in
+# the environment, and the arena sends an option only when it is listed.
+# Engines started from the tests (here or through the arena) inherit it.
+os.environ.setdefault("HB_EXPERIMENTAL", "1")
+
 
 def seat_of(name: str) -> tuple[int, chess.Color]:
     board = 0 if name[0] == "A" else 1

@@ -21,7 +21,6 @@
 
 #include <cassert>
 #include <deque>
-#include <unordered_map>
 #include <memory> // For std::unique_ptr
 #include <string>
 #include <functional>
@@ -124,17 +123,6 @@ namespace HB {
   // pawn's board value and feed price, and an exchange test that sees the
   // captured pawn). False keeps the old estimate, which gives it nothing.
   extern bool  FeedEpFix;
-  // HBTreeRepetition: the referee's threefold of the board (pockets ignored)
-  // inside HypeBeast searches. RepHist counts the real game's board keys of
-  // the searched board (nullptr: none known); RepRootKey is the board key of
-  // the real current position, which RepHist already counts.
-  extern bool TreeRep;
-  extern const std::unordered_map<Key, int>* RepHist;
-  extern Key RepRootKey;
-  extern uint64_t RepFilter[64];   // 4096-bit filter of RepHist's keys, so most nodes skip the lookup
-  // HBCastlePenalty: internal value taken off a castling move at the root of
-  // HypeBeast searches of our own board (0: none).
-  extern int CastlePenalty;
 }
 
 class Position {
@@ -363,7 +351,6 @@ public:
 
   // Accessing hash keys
   Key key() const;
-  Key board_key() const;   // HypeBeast: the hash key without the hands (the referee's repetition key)
   Key key_after(Move m) const;
   Key material_key(EndgameEval e = EG_EVAL_CHESS) const;
   Key pawn_key() const;

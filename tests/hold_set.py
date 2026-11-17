@@ -6,13 +6,16 @@ openings/hold_set.json, one decision each, with the moves, seat, team,
 clocks and time advantage as logged:
 
   hold    every move is mated on our board while the partner is winning:
-          pass = the engine sits (HBHoldWhenMated). With HBHoldRace on, game
+          pass = the engine sits (HBHoldWhenMated). With HBHoldRace on (the default), game
           10 idx 40 moves by design: its partner's mate in 5 needs 12.75 s
           of lead over the diagonal seat and there are 1.8 s.
   feed    two near-equal moves, one hands over a dearer piece:
           pass = the engine does not play `avoid` (HBFeedTieBreak)
   castle  castling into HiveMind's pawn-drop storm:
-          pass = the engine does not castle here (HBCastlePenalty)
+          pass = the engine does not castle here. Kept as positions only:
+          the rule they were collected for, a root penalty on castling,
+          showed nothing in play and is gone (docs/REJECTED.md), so they
+          are not in the default --kind
 
 openings/hold_race_set.json, the first hold of every game HypeBeast lost on
 its flag with HBHoldWhenMated against HiveMind at 1500 nodes
@@ -24,8 +27,8 @@ race test.
   race    expect "move": the hold cannot win the clock race against the
           diagonal seat (no forced mate for our partner that our lead
           covers), so the engine plays on; expect "pass": mated in 1 (a free
-          hold). Run with HBHoldWhenMated=true and HBHoldRace=250; without
-          HBHoldRace the "move" items fail (the old rule sits in all 14).
+          hold). These are the defaults (HBHoldWhenMated, HBHoldRace=250);
+          with HBHoldRace=0 the "move" items fail (the old rule sits in all 14).
           Then the last hold before each of the 14 flags (notes "LAST
           HOLD"): every one has the diagonal seat on turn, up on time, and
           our lead below zero, so expect "move" in all 14, the four mated-in-1
@@ -33,7 +36,7 @@ race test.
           lead gone only while our partner is on turn).
 
   hold_set.py run [openings/hold_set.json] --bin PATH [--nodes 4500000]
-              [--workers 2] [--option K=V ...] [--kind hold,feed,castle,race] [--verbose]
+              [--workers 2] [--option K=V ...] [--kind hold,feed,race,castle] [--verbose]
 """
 
 from __future__ import annotations
@@ -106,7 +109,7 @@ def main() -> int:
     r.add_argument("--nodes", type=int, default=4_500_000)
     r.add_argument("--workers", type=int, default=2)
     r.add_argument("--option", action="append", default=[])
-    r.add_argument("--kind", default="hold,feed,castle,race")
+    r.add_argument("--kind", default="hold,feed,race")
     r.add_argument("--verbose", action="store_true")
     r.set_defaults(fn=run)
     args = parser.parse_args()

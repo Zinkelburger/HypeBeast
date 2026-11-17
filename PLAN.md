@@ -2,6 +2,108 @@
 
 Revision 7 — 2026-11-06. Replaces revision 6 and its phase ordering.
 
+## Revision 12 (engine v7, 2026-11-17): holds on, four ideas removed, fewer listed options
+
+Where this section and the text below disagree, this section wins.
+
+**Holds are on by default** (`HBHoldWhenMated`, `HBHoldRace=250`), and a
+second hold is new (`HBHoldPartnerMate`, on). Decided by the user on the
+argument, without a 100-game match: a seat that is mated whatever it plays
+loses nothing by sitting, and a seat whose partner has a forced mate can only
+spoil it by moving.
+
+- **Hold when mated**, as built in revision 11 with the clock race: a mate
+  against us within `HBHoldFreePlies` (2) plies is held while we lead the
+  diagonal seat, or through one partner move without a lead; a longer mate
+  is held only when our partner has a forced mate our lead covers, and
+  otherwise the seat plays the longest defence and holds at the end. Sitting
+  early buys nothing that sitting at the last move does not, and playing on
+  keeps the chance that the opponent misses the mate. One case still moves
+  into a mate in one: the diagonal seat on turn with its team up on time,
+  where sitting loses on the flag instead.
+- **Hold on a partner mate** (`HBHoldPartnerMate`). Not mated, no mate of
+  our own (then we play it: two seats waiting for each other only burn the
+  lead), and the forecast's best line is a forced mate for our partner in
+  `pm` moves. While we sit on turn our opponent cannot capture, so the seat
+  being mated gets no piece, and without its team's time advantage no
+  blocker either: the mate stands. That seat can only sit too, and loses the
+  race when our lead is at least `HBHoldRace + (pm - 1) * 2500` ms: its last
+  turn comes before our partner's mating move. (A hold when mated allows
+  for `pm` moves; losing that race is a lost game, losing this one only
+  ends the hold.) The guard,
+  timers and wake rules are the hold's (`hold_guard`); the hold ends at any
+  wake where the lead no longer covers it, and after every partner move the
+  position is searched again. Reason `hold_partner_mate`.
+  `tests/test_hold_partner.py`: 7 of 7.
+- With `HBHoldRace` above 0, Stall and Wait also respect the arena's one
+  timer per turn (revision 11). So v6's play is `HBHoldWhenMated=false
+  HBHoldPartnerMate=false HBHoldRace=0`.
+
+**Removed** (measured in revisions 10 and 11, no gain or worse): feed
+pricing by deep probes (`HBFeedPriceNodes`, `Div`, `Cap`, `HBFeedMatePrice`,
+`HBFeedPriceLost`), `HBChanceVerify`, `HBTreeRepetition`, `HBCastlePenalty`,
+and what only they used (`Position::board_key`, the board-key history, the
+verify counters). `docs/REJECTED.md` records what each was, its results, the
+reading and where the code is (tag v1.1.0), so they are not built twice.
+The feed prices of v3 (depth-3 probes, cap 500, mate 1500) are unchanged.
+
+**Listed options.** `uci` lists the arena's options and one switch per
+version's rules (9 `HB*` options instead of 46). The fitted values and the
+experiments that are off (`HBChanceCondition`, `HBChanceHold`, `HBFeedEpFix`,
+`HBFeedTieBreak`, `HBChanceAspiration`) can be set but are listed only with
+`HB_EXPERIMENTAL=1` in the environment, which the match scripts and
+`tests/hbutil.py` set: the arena refuses to send an option that is not
+listed. `docs/OPTIONS.md` describes all of them.
+
+**Checks.**
+
+- The removal changes nothing: with the three hold settings off, this build
+  prints the same output as the v1.1.0 binary (every info line, score, node
+  count and move; time, nps and hashfull masked) on 232 of 232 fixed-node
+  decisions at 500k nodes: the 94 positions of `openings/*.json` at the
+  defaults, and slices of them under v4's and v5's settings, hold without
+  and with the race, `HBChanceHold`, `HBChanceCondition`, and the tie-break
+  with the en passant fix and aspiration. Two runs of v1.1.0 agree with each
+  other the same way.
+- The new defaults on those 94 positions (all from lost games): 11 decisions
+  change, every one a mate in one against us that is now held; 19 longer
+  mates play on (no partner mate), 8 mates in one move (race lost). No
+  partner-mate hold arises there.
+- `openings/hold_race_set.json` at the defaults: 28 of 28. `hold_set.json`:
+  hold 2 of 3 (game 10 idx 40 moves by design, revision 11), feed 2 of 2.
+- `tests/test_hold_race.py`, `test_hold_timer_arena.py`, `test_chance.py`,
+  `test_draw.py` (without its tree-repetition cases), `test_coordinator.py`,
+  `test_probe.py --long`, `test_terminal_fixtures.py`,
+  `test_upstream_parity.py`, replay fuzz (400 games), smoke games (16): pass.
+- A sanity match, not a measurement (32 games is about ±16 points): v7
+  against the v1.1.0 binary, 16 opening pairs, 500k nodes:
+  17-15, 53.1% (44.7 to 61.4), 15 pairs split and one won 2-0, every game
+  ended in checkmate, no flag, no error (logs/v7b-vs-v110-sanity; the build
+  before the `pm - 1` change scored the same, logs/v7-vs-v110-sanity). v7
+  sat 14 times on a mate against it and 5 times on a partner mate, all five
+  with the mate one move away. It declined the partner hold 34 times for
+  the race: in arena self-play every move costs 1.5 to 2.5 s, the lead over
+  the diagonal seat stayed between -4.3 and +2.2 s, and a mate two or more
+  partner moves away needs 2.75 s or more. So this rule seldom fires here.
+  Post-mortem: decisions where v7 stated a winning chance under 10% were
+  won 13.1% of the time (107 decisions), v1.1.0's 0.0% (95).
+
+| Match | Result | Log |
+|---|---|---|
+| v7 vs v1.1.0, 16 pairs, 500k | 17-15, 53.1% (44.7 to 61.4), Elo +22 (-37 to +80), no flags | logs/v7b-vs-v110-sanity |
+| v7 at 500k vs v7 at 450k, 30 pairs (the holds on both teams) | 32-28, all 60 by checkmate, no flag, no error | logs/v7-selfplay-flags |
+
+The second match puts the holds on both teams, so a seat that holds can meet
+a seat that sits back; the node budgets differ only so that the two games of
+a pair are not mirror images. Partner-mate holds: 19 decisions in 15 games,
+and the holding team won all 15. Holds when mated: 45 decisions in 24
+games, one of them won. No game ended on the clock.
+
+Not done: a match against HiveMind with the holds on (revision 11's queued
+`HBHoldRace` matches). HiveMind sits when its team is up on time, which is
+where the first hold flagged, so that match is the one that tests the race
+guard in play.
+
 ## Revision 11 (engine v6, 2026-11-16): review fixes and their matches
 
 Where this section and the text below disagree, this section wins. v6 is v5

@@ -85,7 +85,6 @@ public:
   Value hbAlpha, hbBeta;
   // HypeBeast chance statistics (see hb_chance.h), reset per search
   uint64_t hbChancePasses, hbChanceDrops, hbChanceRaised, hbChanceCuts, hbChanceNodes;
-  uint64_t hbChanceVerify, hbChanceVerifyFail, hbChanceUnresolved, hbChanceVerifyNodes;
   int hbChanceNest;
 };
 

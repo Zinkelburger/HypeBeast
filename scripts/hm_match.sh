@@ -70,6 +70,9 @@ CONCURRENCY=${CONCURRENCY:-2}
 CPUS=${CPUS-0-11}
 SEARCH_TIMEOUT=${SEARCH_TIMEOUT:-300}
 export HYPEBEAST_HOME=${HYPEBEAST_HOME:-$HB}
+# The engine lists its tuning and experimental options only with this set,
+# and the arena sends an Option=value only when the option is listed.
+export HB_EXPERIMENTAL=${HB_EXPERIMENTAL:-1}
 TOOLS=${ARENA_TOOLS:-${HB_ARENA_TOOLS:-$HB/upstream/cap-dev/tools}}
 OPENINGS=${OPENINGS:-$TOOLS/bughouse_arena/opening_sets/screen20.txt}
 
