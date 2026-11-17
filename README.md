@@ -110,6 +110,35 @@ make -j build ARCH=x86-64-bmi2 COMP=gcc
 The binary is `engine/src/stockfish`. After adding or changing a header,
 delete `engine/src/.depend` first; the Makefile only writes it when missing.
 
+## In the browser
+
+`web/build.sh` compiles the engine to WebAssembly (`web/dist/hypebeast.js`
+and `.wasm`) with Emscripten 5.0.7 and the flags of Lichess's
+[stockfish-web](https://github.com/lichess-org/stockfish-web): threads,
+SIMD, no tablebases. The page hands the net over with `setNnueBuffer` and
+sends UCI with `uci()`, as with Lichess's Fairy-Stockfish build; the engine
+changes are behind `__EMSCRIPTEN__`. The browser build and the native one
+give the same score, move and node count at a fixed depth.
+`node web/run-node.mjs < commands` drives it from Node (`net PATH` loads the
+net, `wait MS` pauses). [chessautoprep.com/bughouse](https://chessautoprep.com/bughouse)
+runs it.
+
+Three reports are for pages like that one:
+
+- Every go that prices the partner board prints `info string hb_values
+  {...}`: for each colour, how much better that side stands with one more
+  pawn, knight, bishop, rook or queen in hand on the partner board, in
+  centipawns from its own side, or `"mate"`.
+- While a search uses those prices, each line of more than one move is
+  followed by `info string hb_fed multipv N cp X`: how much of that line's
+  score is what its captures are worth on the partner board, from the side
+  to move. The score minus `X` is the board's own score along the line.
+- `hbvalues board A|B movetime N` measures that table for one board,
+  deepening by two plies while the time lasts, and ends with `bestmove
+  (none)`.
+
+With `Coordination=false` the main search honours `MultiPV`.
+
 ## Tests and matches
 
 `tests/run_all.sh` runs the engine-side checks. They import the referee from a

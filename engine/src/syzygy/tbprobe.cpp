@@ -40,6 +40,20 @@
 
 #include "tbprobe.h"
 
+#ifdef NO_TABLEBASES
+
+// The browser build has no files to probe.
+namespace Stockfish::Tablebases {
+  int MaxCardinality = 0;
+  void init(const std::string&) {}
+  WDLScore probe_wdl(Position&, ProbeState* r) { *r = ProbeState::FAIL; return WDLDraw; }
+  int probe_dtz(Position&, ProbeState* r) { *r = ProbeState::FAIL; return 0; }
+  bool root_probe(Position&, Search::RootMoves&) { return false; }
+  bool root_probe_wdl(Position&, Search::RootMoves&) { return false; }
+}
+
+#else
+
 #ifndef _WIN32
 #include <fcntl.h>
 #include <unistd.h>
@@ -2349,3 +2363,5 @@ bool Tablebases::root_probe_wdl(Position& pos, Search::RootMoves& rootMoves) {
 }
 
 } // namespace Stockfish
+
+#endif // NO_TABLEBASES

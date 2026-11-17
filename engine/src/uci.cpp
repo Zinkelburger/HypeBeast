@@ -37,6 +37,10 @@
 
 using namespace std;
 
+#ifdef __EMSCRIPTEN__
+std::string js_getline(); // web/glue.cpp
+#endif
+
 namespace Stockfish {
 
 extern vector<string> setup_bench(const Position&, istream&);
@@ -325,8 +329,12 @@ void UCI::loop(int argc, char* argv[]) {
   }
 
   do {
+#ifdef __EMSCRIPTEN__
+      cmd = js_getline();
+#else
       if (argc == 1 && !getline(cin, cmd)) // Block here waiting for input or EOF
           cmd = "quit";
+#endif
 
       istringstream is(cmd);
 
@@ -391,6 +399,7 @@ void UCI::loop(int argc, char* argv[]) {
       else if (token == "hbmakeundo") HB::Arena::hbmakeundo(is);
       else if (token == "hbprobe")    HB::Arena::hbprobe(is);
       else if (token == "hbforecast") HB::Arena::hbforecast(is);
+      else if (token == "hbvalues")   HB::Arena::hbvalues(is);
       else if (token == "isready")    sync_cout << "readyok" << sync_endl;
 
       // Additional custom non-UCI commands, mainly for debugging.
