@@ -13,8 +13,16 @@
 # NAME-b unless it gives a name.
 #
 # Defaults: PAIRS 50, NODES 500000, CONCURRENCY 8. Openings are the first
-# PAIRS lines of openings/dev100.txt, each played twice with teams swapped,
-# --fixed-sample (pair-aware Wilson interval, no SPRT). Output goes to
+# PAIRS lines of openings/bench-v1.txt, each played twice with teams swapped,
+# --fixed-sample (pair-aware Wilson interval, no SPRT). PAIRS is 10, 25 or 50
+# (a 20, 50 or 100 game match): the set is ordered so that each of those is
+# the start of the next, and every match of one size is on the same
+# positions. ANY_PAIRS=1 allows another count, for a check that is not a
+# result. To repeat a match on other positions, give it another NAME and
+# OPENINGS=openings/bench-v1-repeat.txt, then pool the two with
+# scripts/match_report.py. openings/README.md has the sets and how they were
+# chosen. When the match ends, scripts/match_report.py prints the decisive
+# pairs each side won and their p. Output goes to
 # logs/NAME (results.jsonl, summary.json, games.bpgn, manifest.json) and the
 # arena's own log to logs/NAME.log. Run the same command again to continue
 # an interrupted match: --resume is added when logs/NAME/results.jsonl exists
@@ -69,13 +77,21 @@ export HYPEBEAST_HOME=${HYPEBEAST_HOME:-$HB}
 # and the arena sends an Option=value only when the option is listed.
 export HB_EXPERIMENTAL=${HB_EXPERIMENTAL:-1}
 TOOLS=${ARENA_TOOLS:-${HB_ARENA_TOOLS:-$HB/upstream/cap-dev/tools}}
-OPENINGS=${OPENINGS:-$HB/openings/dev100.txt}
+# The checkout the tests use, when the pinned one is not there.
+[[ -d $TOOLS/bughouse_arena ]] || TOOLS=$HOME/Projects/Chess-Auto-Prep/tools
+OPENINGS=${OPENINGS:-$HB/openings/bench-v1.txt}
 if [[ -z ${SEARCH_TIMEOUT:-} ]]; then
   if (( NODES >= 2000000 )); then SEARCH_TIMEOUT=300; else SEARCH_TIMEOUT=120; fi
 fi
 
 [[ $NAME =~ ^[A-Za-z0-9._-]+$ ]] || { echo "NAME must be [A-Za-z0-9._-]+" >&2; exit 2; }
 [[ -d $TOOLS/bughouse_arena ]] || { echo "no arena in $TOOLS" >&2; exit 2; }
+[[ -f $OPENINGS ]] || { echo "no opening file $OPENINGS" >&2; exit 2; }
+OPENINGS=$(realpath "$OPENINGS")   # the arena runs from its own directory
+if [[ ${ANY_PAIRS:-0} != 1 && ! $PAIRS =~ ^(10|25|50)$ ]]; then
+  echo "PAIRS is 10, 25 or 50 (20, 50 or 100 games); ANY_PAIRS=1 allows $PAIRS for a check" >&2
+  exit 2
+fi
 
 # spec SPEC LABEL -> full arena spec
 spec() {
@@ -112,4 +128,5 @@ start=$(date +%s)
 python3 -m bughouse_arena "${args[@]}" 2>&1 | tee -a "$LOG"
 status=${PIPESTATUS[0]}
 echo "=== exit=$status wall=$(( $(date +%s) - start ))s $(date -Is)" | tee -a "$LOG"
+[[ -f $OUT/results.jsonl ]] && python3 "$HB/scripts/match_report.py" "$OUT" | tee -a "$LOG"
 exit "$status"

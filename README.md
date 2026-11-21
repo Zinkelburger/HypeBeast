@@ -6,32 +6,51 @@ coordinator on top: each seat searches its own board with alpha-beta and the
 stock Fairy-Stockfish bughouse network, and decides its move knowing what is
 likely to arrive from the other board.
 
-## What it adds to Fairy-Stockfish
+## How it works
 
-- **Forecast.** Before searching its own board, a seat searches its partner's
-  board and reads off the captures likely in the next two plies: pieces coming
-  to it, and pieces coming to its opponent.
-- **Worlds.** It searches its own board once for "nothing arrives" and once
-  for each likely package of arrivals, then plays the move with the best
-  probability-weighted winning chance.
-- **Chance inside the search (v5).** In the first plies of its own search, a
-  side may also drop a piece that the forecast says is likely to have
-  arrived by then; the position's value mixes, in winning chances, the line
-  where it arrives with the line where it does not.
-- **Referee draws (v5).** The arena draws on a threefold repetition of the
-  board with the pockets ignored. When ahead, HypeBeast avoids moves that
-  complete one or let the opponent complete one; when clearly lost, it takes
-  one.
-- **Feed prices.** A capture is priced by what the captured piece is worth to
-  the player who receives it on the other board.
-- **Exposure and stalling.** A move that lets the opponent's partner feed a
-  mating drop is avoided, or the seat sits when the clocks allow it.
-- **Holding (v7).** A seat that is mated whatever it plays sits instead of
-  moving into the mate, and a seat whose partner has a forced mate sits so
-  that its own board hands the defender nothing. Both only while its clock
-  outlasts the opposing seat it races, which can sit too.
+In bughouse a captured piece goes to the capturer's partner, who may drop it
+on the other board. So the right move on one board depends on what is about
+to be captured on the other. HypeBeast keeps Fairy-Stockfish's one-board
+search and network, and adds an estimate of which pieces are about to arrive
+and how likely each is. Each seat is its own process and is given both
+boards. The two partners do not exchange messages.
 
-`PLAN.md` has the design, the reasons and every measurement.
+For each move, a seat does this:
+
+1. **Prices the pieces (v3).** Short searches of the partner's board, each
+   with one extra piece in a pocket, say what a pawn, knight, bishop, rook or
+   queen is worth there to each side. In the seat's own search a capture
+   counts for that too: taking a knight is worth more when the partner can
+   use a knight, and losing one costs more when it helps the attack on the
+   partner.
+2. **Forecasts the arrivals (v4).** It searches the partner's board for its
+   best lines and reads the captures in the first two plies of each. Better
+   lines get more weight. The result is a probability for each package of
+   pieces that may arrive, for the seat or for its opponent.
+3. **Searches its own board with chance in the tree (v5).** In the first four
+   plies, a side may drop a piece it does not hold but the forecast expects.
+   The position's value is then a mix of the line where the piece arrives and
+   the line where it does not, weighted by the piece's probability.
+4. **Chooses over worlds (v4).** It searches its board again once for each
+   likely package, as if those pieces were already in the pocket, and plays
+   the move with the best probability-weighted winning chance over all of
+   them.
+5. **Applies the team rules.** It takes a win the referee would confirm. It
+   refuses a move that lets the opponents capture a piece and mate with it on
+   the other board (v3). It sits, meaning it declines to move, when that is
+   better than any move: when every move feeds such a mate, when it is mated
+   whatever it plays, or when its partner has a forced mate (v7). It sits
+   only while its clock outlasts the opposing seat it races. It avoids the
+   referee's threefold draw when ahead and takes it when lost (v5).
+
+Nothing is sampled at random. Every outcome the forecast lists is searched
+and weighted by its probability, and the weighing is done in winning chances
+so that a mate counts as certain and not as a very large score.
+
+[docs/ENGINE.md](docs/ENGINE.md) explains each step in full: the formulas,
+the numbers, a worked example of each, the known approximations and where
+each part is in the code. `PLAN.md` has the history, the reasons and every
+measurement.
 
 ## Results so far
 

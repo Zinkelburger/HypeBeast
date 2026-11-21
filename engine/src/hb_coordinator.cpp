@@ -430,6 +430,8 @@ std::string with_turn(const std::string& fen, Color c) {
 ///  - Our partner is on turn otherwise: SOFT, since our partner may move away.
 /// Direction 2: m hands the opponent the turn on our board, and the opponent on
 /// the other board is on turn with a capture that feeds the mating drop: CERTAIN.
+/// A capture of a type the receiver already holds feeds nothing new and is
+/// skipped in both directions (the drop was available without m).
 int exposure_tier(const CoordinatorContext& ctx, TeamState& work, Move m, std::string& how) {
   const int X = ctx.board, Y = 1 - ctx.board;
   int tier = SAFE;
@@ -449,6 +451,13 @@ int exposure_tier(const CoordinatorContext& ctx, TeamState& work, Move m, std::s
       }
       Piece fed = u2.transfer.piece;
       Color dropper = color_of(fed);              // opponent's colour on Y
+      // Already holding that type, their partner could drop it without our
+      // move: the capture adds no mate, and m is not what exposes us.
+      if (work.pos(Y).count_in_hand(dropper, type_of(fed)) > 1)
+      {
+          work.undo(u2);
+          continue;
+      }
       std::string fenX = work.fen(X), fenY = work.fen(Y), drop;
       auto build = [&](TeamState& p, const std::string& fy) {
           std::string err;
@@ -500,7 +509,10 @@ int exposure_tier(const CoordinatorContext& ctx, TeamState& work, Move m, std::s
               continue;
           std::string rUci = UCI::move(work.pos(Y), r), drop;
           TeamUndo u2 = work.play_undoable(Y, r);  // piece goes to the opponent on X
-          bool mates = !drawn_now(work) && drop_mates(ctx, work, X, u2.transfer.piece, drop);
+          Piece fed = u2.transfer.piece;
+          bool mates = !drawn_now(work)
+                    && work.pos(X).count_in_hand(color_of(fed), type_of(fed)) <= 1   // not a type they already hold
+                    && drop_mates(ctx, work, X, fed, drop);
           work.undo(u2);
           if (mates)
           {

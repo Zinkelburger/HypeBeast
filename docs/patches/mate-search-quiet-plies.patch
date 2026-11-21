@@ -1,0 +1,606 @@
+diff --git a/engine/src/Makefile b/engine/src/Makefile
+index b4507cd..717aa54 100644
+--- a/engine/src/Makefile
++++ b/engine/src/Makefile
+@@ -44,7 +44,7 @@ SRCS = benchmark.cpp bitbase.cpp bitboard.cpp endgame.cpp evaluate.cpp main.cpp
+ 	nnue/evaluate_nnue.cpp nnue/features/half_ka_v2.cpp \
+ 	partner.cpp parser.cpp piece.cpp variant.cpp xboard.cpp \
+ 	nnue/features/half_ka_v2_variants.cpp \
+-	hb_arena.cpp hb_team_state.cpp hb_probe.cpp hb_coordinator.cpp hb_forecast.cpp hb_decisionlog.cpp hb_chance.cpp
++	hb_arena.cpp hb_team_state.cpp hb_probe.cpp hb_coordinator.cpp hb_forecast.cpp hb_decisionlog.cpp hb_chance.cpp hb_mate.cpp
+ 
+ OBJS = $(notdir $(SRCS:.cpp=.o))
+ 
+diff --git a/engine/src/hb_arena.cpp b/engine/src/hb_arena.cpp
+index 928c7ec..22464f2 100644
+--- a/engine/src/hb_arena.cpp
++++ b/engine/src/hb_arena.cpp
+@@ -20,6 +20,7 @@
+ #include "hb_arena.h"
+ #include "hb_coordinator.h"
+ #include "hb_decisionlog.h"
++#include "hb_mate.h"
+ #include "hb_probe.h"
+ #include "hb_team_state.h"
+ #include "misc.h"
+@@ -201,11 +202,42 @@ void controller(Search::LimitsType limits) {
+                              {sc.clocks[0], sc.clocks[1], sc.clocks[2], sc.clocks[3]},
+                              verdict, mainResult, fallback, budget,
+                              ChildWorker::get(), log};
++      // HBMateSearch: checks and forced replies only, with the pockets as
++      // they are, far deeper than the main search (hb_mate.h).
++      const bool mateSearch = coordination && bool(Options["HBMateSearch"]) && !budget.passthrough();
++      const double mateShare = double(int(Options["HBMateNodes"])) / 1000.0;
++      const int matePlies = int(Options["HBMatePlies"]);
++      const uint64_t mateCap = budget.node_limited() ? budget.share_nodes(mateShare)
++                                                     : uint64_t(budget.share_ms(mateShare)) * 200;
++      const std::string ourFen = ts.fen(sc.board);
++      uint64_t mateNodes = 0;
++      auto mate_done = [&](const Mate::Result& r) {
++          budget.charge(r.nodes);
++          mateNodes += r.nodes;
++          return r;
++      };
++      bool mateFound = false;
++      if (mateSearch)
++      {
++          Mate::new_go();
++          Mate::Result a = mate_done(Mate::search(ourFen, mateCap, matePlies));
++          log.set("mate_attack", a.mate ? UCI::move(pos, a.first) : a.refuted ? "none" : "open");
++          if (a.mate && legal.contains(a.first))
++              d.move = a.first, d.reason = "mate_search", mateFound = true;
++      }
++      if (!mateFound)
++      {
+       // Prices are measured first so the main search can use them.
++      const int quietPlies = int(Options["HBQuietPlies"]);
+       if (coordination)
+       {
+-          prepare_feed_prices(ctx);
+-          prepare_forecast(ctx);
++          if (quietPlies > 0 && int(ts.move_count()) < quietPlies)
++              prepare_quiet(ctx);
++          else
++          {
++              prepare_feed_prices(ctx);
++              prepare_forecast(ctx);
++          }
+           // A root search without the drawing moves may be needed at the end
+           if (bool(Options["HBAvoidDraw"]) && draw_possible(ctx))
+               budget.open_reserve(Coef::DrawReserve);
+@@ -215,6 +247,52 @@ void controller(Search::LimitsType limits) {
+       mainResult = run_main_search(ts, sc.board, budget, Phase::MAIN, &log, {},
+                                    coordination ? 1 : std::max<size_t>(1, size_t(Options["MultiPV"])));
+       searched = true;
++
++      // HBMateSearch, defence. The main search does not see itself mated, but
++      // its move allows a mate by checks: the main search is run again over
++      // the moves that have no such proof against them, and takes its place.
++      std::vector<Move> mateSafe;
++      bool guardSet = false, mainChecked = false;
++      auto main_ok = [&]() {
++          return mainResult.status == ProbeResult::OK && mainResult.finalMove != MOVE_NONE
++              && !(mainResult.exact && mainResult.score <= VALUE_MATED_IN_MAX_PLY);
++      };
++      if (mateSearch && main_ok() && legal.size() > 1)
++      {
++          const Move M = mainResult.finalMove;
++          mainChecked = true;
++          if (mate_done(Mate::after(ourFen, M, mateCap, matePlies)).mate)
++          {
++              const uint64_t each = std::max<uint64_t>(mateCap / 4, 200), limit = 4 * mateCap;
++              uint64_t spent = 0;
++              int mated = 1;
++              for (const auto& m : legal)
++              {
++                  if (Move(m) == M)
++                      continue;
++                  if (spent >= limit)
++                  {
++                      mateSafe.push_back(m);       // not examined: nothing proved against it
++                      continue;
++                  }
++                  Mate::Result r = mate_done(Mate::after(ourFen, m, each, matePlies));
++                  spent += r.nodes;
++                  if (r.mate)
++                      ++mated;
++                  else
++                      mateSafe.push_back(m);
++              }
++              log.set("mate_guard", UCI::move(pos, M) + ":" + std::to_string(mated) + "/" + std::to_string(legal.size()));
++              if (!mateSafe.empty())
++              {
++                  ProbeResult again = run_main_search(ts, sc.board, budget, Phase::COMPARE, &log, mateSafe, 1, "mate_guard", 0.5);
++                  if (again.status == ProbeResult::OK && again.finalMove != MOVE_NONE && again.depth > 0
++                      && std::find(mateSafe.begin(), mateSafe.end(), again.finalMove) != mateSafe.end())
++                      mainResult = again, guardSet = true;
++              }
++          }
++      }
++
+       if (coordination)
+       {
+           d = coordinate(ctx);
+@@ -227,6 +305,33 @@ void controller(Search::LimitsType limits) {
+       else
+           d.move = fallback, d.reason = "fallback";
+ 
++      // HBMateSearch, defence: a move chosen after the main search (a world's
++      // move, a draw rule's) gets the same test; one that fails gives way to
++      // the main search's move, which passed. Verified wins are left alone.
++      if (mateSearch && mainChecked && !d.pass && d.move != MOVE_NONE && main_ok()
++          && d.reason.rfind("team_win", 0) != 0 && d.reason.rfind("delivery_win", 0) != 0)
++      {
++          const Move M = mainResult.finalMove;
++          bool bad = false;
++          if (guardSet)
++              bad = std::find(mateSafe.begin(), mateSafe.end(), d.move) == mateSafe.end();
++          else if (d.move != M)
++              bad = mate_done(Mate::after(ourFen, d.move, mateCap, matePlies)).mate;
++          if (bad && legal.contains(M))
++          {
++              log.set("mate_guard_kept", UCI::move(pos, d.move));
++              d.move = M, d.reason = "mate_guard";
++          }
++      }
++      }
++      if (mateNodes)
++      {
++          ProbeResult mr;
++          mr.status = ProbeResult::OK;
++          mr.nodes = mateNodes;
++          log.add(Phase::DISCOVERY, "mate", mr);
++      }
++
+       if (!d.pass && (d.move == MOVE_NONE || !legal.contains(d.move)))
+       {
+           sync_cout << "info string hb_error illegal_decision reason=" << d.reason
+@@ -677,6 +782,37 @@ void hbvalues(std::istringstream& is) {
+   });
+ }
+ 
++// The mate search alone, on the seat's board (or 'board A|B'), for the side
++// to move there, or after one move of that side ('after e2e4').
++void hbmate(std::istringstream& is) {
++  uint64_t nodes = 20000;
++  int plies = 40, board = -1;
++  std::string token, afterMove;
++  while (is >> token)
++      if      (token == "nodes") is >> nodes;
++      else if (token == "plies") is >> plies;
++      else if (token == "after") is >> afterMove;
++      else if (token == "board") { is >> token; board = token == "B" || token == "b" ? BOARD_B : BOARD_A; }
++
++  actual();
++  spawn([nodes, plies, board, afterMove]() {
++      TeamState& ts = actual();
++      const int b = board < 0 ? seat_context().board : board;
++      const Position& pos = ts.pos(b);
++      Mate::new_go();
++      Mate::Result r;
++      std::string mv = afterMove;
++      if (mv.empty())
++          r = Mate::search(ts.fen(b), nodes, plies);
++      else
++          r = Mate::after(ts.fen(b), UCI::to_move(pos, mv), nodes, plies);
++      sync_cout << "hbmate {\"mate\":" << (r.mate ? "true" : "false")
++                << ",\"refuted\":" << (r.refuted ? "true" : "false")
++                << ",\"first\":\"" << (r.mate ? UCI::move(pos, r.first) : std::string()) << "\""
++                << ",\"nodes\":" << r.nodes << "}" << sync_endl;
++  });
++}
++
+ void shutdown() {
+   stop();
+   wait();
+diff --git a/engine/src/hb_arena.h b/engine/src/hb_arena.h
+index 73ba5ae..3994819 100644
+--- a/engine/src/hb_arena.h
++++ b/engine/src/hb_arena.h
+@@ -41,6 +41,7 @@ void hbmakeundo(std::istringstream& is);
+ void hbprobe(std::istringstream& is);
+ void hbforecast(std::istringstream& is);
+ void hbvalues(std::istringstream& is);
++void hbmate(std::istringstream& is);
+ void shutdown();  // join controller and free the child worker
+ 
+ } // namespace Stockfish::HB::Arena
+diff --git a/engine/src/hb_coordinator.cpp b/engine/src/hb_coordinator.cpp
+index a5ef9a1..d0908c6 100644
+--- a/engine/src/hb_coordinator.cpp
++++ b/engine/src/hb_coordinator.cpp
+@@ -384,6 +384,9 @@ int partner_mate_moves() {
+ // This go's partner-board score for our team (feed-price base probe), and the
+ // prices of pieces handed to the opponent (cp), for the hold and tie-break rules.
+ bool HaveQ0 = false;
++// The main table holds scores of a go with prices or chance (HBQuietPlies:
++// a go without either must not read them).
++bool TableDirty = false;
+ int  PartnerQ0 = 0;
+ int  TheirsCp[PIECE_TYPE_NB] = {};
+ 
+@@ -704,6 +707,7 @@ void prepare_feed_prices(CoordinatorContext& ctx) {
+   FedRoot = ctx.us;
+   // Scores in the table carry another go's prices and root.
+   TT.clear();
++  TableDirty = true;
+   PricesOn = true;
+   set_feed_prices_planned(true);
+   ctx.log.set("prices", "1");
+@@ -729,6 +733,7 @@ void prepare_forecast(CoordinatorContext& ctx) {
+   // go's table, so the main table starts empty.
+   auto plan_chance = [&]() {
+       Chance::Planned = true;
++      TableDirty = true;
+       if (!PricesOn)
+           TT.clear();
+       ctx.log.set("chance", Chance::T.source);
+@@ -779,6 +784,23 @@ void prepare_forecast(CoordinatorContext& ctx) {
+   }
+ }
+ 
++void prepare_quiet(CoordinatorContext& ctx) {
++  Cache = ProbeCache();
++  PricesOn = false;
++  HaveQ0 = false;
++  std::fill(TheirsCp, TheirsCp + PIECE_TYPE_NB, 0);
++  set_feed_prices_planned(false);
++  FeedCastleFix = bool(Options["HBFeedCastleFix"]);
++  FeedEpFix = bool(Options["HBFeedEpFix"]);
++  Fc = Forecast();             // one world, "nothing arrives"
++  WorldsOn = true;             // so coordinate() takes its no_arrivals path
++  Chance::Planned = false;
++  if (TableDirty)
++      TT.clear(), TableDirty = false;
++  ctx.budget.set_slices(Slices{0.90, 0.03, 0.05, 0.02});
++  ctx.log.set("quiet", "1");
++}
++
+ Decision coordinate(CoordinatorContext& ctx) {
+   Decision d;
+   const Position& root = ctx.actual.pos(ctx.board);
+diff --git a/engine/src/hb_coordinator.h b/engine/src/hb_coordinator.h
+index a1cbaa5..83b54dd 100644
+--- a/engine/src/hb_coordinator.h
++++ b/engine/src/hb_coordinator.h
+@@ -145,6 +145,11 @@ void prepare_feed_prices(CoordinatorContext& ctx);
+ /// Short searches skip this; coordinate() then uses the v3 rule.
+ void prepare_forecast(CoordinatorContext& ctx);
+ 
++/// HBQuietPlies: instead of the two calls above. No prices, no forecast and
++/// no chance for this go; coordinate() then checks the main search's move
++/// with the team rules and deepens the main search with what is left.
++void prepare_quiet(CoordinatorContext& ctx);
++
+ /// Choose our move after the main search. Returns a legal move of
+ /// ctx.actual.pos(ctx.board), or pass=true to stall. Uses the rest of the
+ /// go budget.
+diff --git a/engine/src/hb_mate.cpp b/engine/src/hb_mate.cpp
+new file mode 100644
+index 0000000..b0e2e7e
+--- /dev/null
++++ b/engine/src/hb_mate.cpp
+@@ -0,0 +1,231 @@
++/*
++  HypeBeast, a bughouse team engine built on Fairy-Stockfish
++  Copyright (C) 2026 HypeBeast authors
++
++  This program is free software: you can redistribute it and/or modify
++  it under the terms of the GNU General Public License as published by
++  the Free Software Foundation, either version 3 of the License, or
++  (at your option) any later version.
++*/
++
++#include <algorithm>
++#include <deque>
++#include <memory>
++#include <vector>
++
++#include "hb_mate.h"
++#include "hb_team_state.h"
++#include "movegen.h"
++#include "position.h"
++#include "thread.h"
++
++namespace Stockfish::HB::Mate {
++
++namespace {
++
++// Proof and disproof numbers of "the attacker mates from here". 0 / Inf is a
++// proof, Inf / 0 a disproof. A proof holds wherever the position occurs. A
++// disproof may come from the ply limit or from a repetition on the line, so
++// it only ever costs a mate that is there, never claims one that is not.
++constexpr uint32_t Inf = 1u << 28;
++
++struct Entry {
++  Key key = 0;
++  uint32_t pn = 1, dn = 1;
++  uint32_t gen = 0;
++};
++
++constexpr size_t TableBits = 19;          // 512k entries, 12 MB
++std::vector<Entry> Table;
++uint32_t Gen = 1;
++
++// The same position is one entry when White attacks and another when Black does.
++constexpr Key SaltOf[COLOR_NB] = { 0x9E3779B97F4A7C15ULL, 0xC2B2AE3D27D4EB4FULL };
++
++struct Search {
++  uint64_t nodes = 0, maxNodes = 0;
++  int maxPly = 0;
++  Key salt = 0;
++  Move rootMove = MOVE_NONE;
++  std::vector<Key> path;
++};
++
++inline Entry& slot(Key k) { return Table[size_t(k) & ((size_t(1) << TableBits) - 1)]; }
++
++inline bool lookup(Key k, uint32_t& pn, uint32_t& dn) {
++  const Entry& e = slot(k);
++  if (e.gen == Gen && e.key == k)
++  {
++      pn = e.pn, dn = e.dn;
++      return true;
++  }
++  pn = dn = 1;
++  return false;
++}
++
++inline void store(Key k, uint32_t pn, uint32_t dn) {
++  Entry& e = slot(k);
++  e.key = k, e.pn = std::min(pn, Inf), e.dn = std::min(dn, Inf), e.gen = Gen;
++}
++
++struct Child {
++  Move move;
++  Key key;
++};
++
++// The moves searched at a node: the attacker's checks, or every reply.
++void moves_of(const Position& pos, bool attacker, std::vector<Child>& out) {
++  for (const auto& m : MoveList<LEGAL>(pos))
++      if (!attacker || pos.gives_check(m))
++          out.push_back(Child{m, 0});
++}
++
++// A position seen for the first time: mate and "no check left" are settled at
++// once, and otherwise the number of moves steers the search (few replies are
++// easy to prove, few checks easy to refute).
++void first_look(const Position& pos, bool attacker, uint32_t& pn, uint32_t& dn) {
++  int n = 0;
++  for (const auto& m : MoveList<LEGAL>(pos))
++      n += !attacker || pos.gives_check(m);
++  if (attacker)
++      pn = n ? 1 : Inf, dn = n ? uint32_t(n) : 0;
++  else if (n)
++      pn = uint32_t(n), dn = 1;
++  else
++      pn = pos.checkers() ? 0 : Inf, dn = pos.checkers() ? Inf : 0;   // mate, or no move without check
++}
++
++void mid(Position& pos, Search& s, uint32_t thpn, uint32_t thdn, bool attacker, int ply) {
++  const Key key = pos.key() ^ s.salt;
++  std::vector<Child> ch;
++  moves_of(pos, attacker, ch);
++  if (ch.empty())
++  {
++      uint32_t pn, dn;
++      first_look(pos, attacker, pn, dn);
++      store(key, pn, dn);
++      return;
++  }
++  if (ply >= s.maxPly)
++  {
++      store(key, Inf, 0);
++      return;
++  }
++
++  StateInfo st;
++  for (Child& c : ch)
++  {
++      pos.do_move(c.move, st);
++      ++s.nodes;
++      c.key = pos.key() ^ s.salt;
++      uint32_t pn, dn;
++      if (!lookup(c.key, pn, dn))
++      {
++          first_look(pos, !attacker, pn, dn);
++          store(c.key, pn, dn);
++      }
++      pos.undo_move(c.move);
++  }
++
++  s.path.push_back(key);
++  while (true)
++  {
++      // The attacker needs one move that mates (least proof number) and the
++      // defender one that escapes (least disproof number); the other number
++      // is the sum over all moves.
++      uint64_t sum = 0;
++      uint32_t best = Inf + 1, second = Inf + 1, bestOther = 0;
++      int bi = -1;
++      for (int i = 0; i < int(ch.size()); ++i)
++      {
++          uint32_t pn, dn;
++          if (std::find(s.path.begin(), s.path.end(), ch[i].key) != s.path.end())
++              pn = Inf, dn = 0;                    // a repetition is no mate
++          else
++              lookup(ch[i].key, pn, dn);
++          const uint32_t sel = attacker ? pn : dn, add = attacker ? dn : pn;
++          sum += add;
++          if (sel < best)
++              second = best, best = sel, bi = i, bestOther = add;
++          else if (sel < second)
++              second = sel;
++      }
++      const uint32_t total = uint32_t(std::min<uint64_t>(sum, Inf));
++      const uint32_t pn = attacker ? std::min(best, Inf) : total;
++      const uint32_t dn = attacker ? total : std::min(best, Inf);
++      if (pn >= thpn || dn >= thdn || s.nodes >= s.maxNodes)
++      {
++          store(key, pn, dn);
++          if (ply == 0 && attacker && pn == 0 && bi >= 0)
++              s.rootMove = ch[bi].move;
++          break;
++      }
++      // Search the chosen move until it stops being the best one, or this
++      // node's own bounds are reached.
++      const uint64_t next = std::min<uint64_t>(uint64_t(second) + 1, Inf);
++      uint32_t cpn, cdn;
++      if (attacker)
++      {
++          cpn = uint32_t(std::min<uint64_t>(thpn, next));
++          cdn = uint32_t(std::min<uint64_t>(uint64_t(thdn) - dn + bestOther, Inf));
++      }
++      else
++      {
++          cdn = uint32_t(std::min<uint64_t>(thdn, next));
++          cpn = uint32_t(std::min<uint64_t>(uint64_t(thpn) - pn + bestOther, Inf));
++      }
++      pos.do_move(ch[bi].move, st);
++      ++s.nodes;
++      mid(pos, s, cpn, cdn, !attacker, ply + 1);
++      pos.undo_move(ch[bi].move);
++  }
++  s.path.pop_back();
++}
++
++Result run(Position& pos, uint64_t maxNodes, int maxPly) {
++  if (Table.empty())
++      Table.resize(size_t(1) << TableBits);
++  Search s;
++  s.maxNodes = std::max<uint64_t>(maxNodes, 1);
++  s.maxPly = std::max(maxPly, 1);
++  s.salt = SaltOf[pos.side_to_move()];
++  mid(pos, s, Inf, Inf, true, 0);
++  Result r;
++  r.nodes = s.nodes;
++  uint32_t pn, dn;
++  if (lookup(pos.key() ^ s.salt, pn, dn))
++  {
++      r.mate = pn == 0 && s.rootMove != MOVE_NONE;
++      r.refuted = dn == 0;
++  }
++  r.first = r.mate ? s.rootMove : MOVE_NONE;
++  return r;
++}
++
++} // namespace
++
++void new_go() {
++  ++Gen;
++}
++
++Result search(const std::string& fen, uint64_t maxNodes, int maxPly) {
++  StateListPtr states(new std::deque<StateInfo>(1));
++  Position pos;
++  pos.set(bughouse_variant(), fen, false, &states->back(), Threads.main());
++  return run(pos, maxNodes, maxPly);
++}
++
++Result after(const std::string& fen, Move m, uint64_t maxNodes, int maxPly) {
++  StateListPtr states(new std::deque<StateInfo>(1));
++  Position pos;
++  pos.set(bughouse_variant(), fen, false, &states->back(), Threads.main());
++  if (!MoveList<LEGAL>(pos).contains(m))
++      return Result();
++  StateInfo st;
++  pos.do_move(m, st);
++  Result r = run(pos, maxNodes, maxPly);
++  pos.undo_move(m);
++  return r;
++}
++
++} // namespace Stockfish::HB::Mate
+diff --git a/engine/src/hb_mate.h b/engine/src/hb_mate.h
+new file mode 100644
+index 0000000..0d1c8dd
+--- /dev/null
++++ b/engine/src/hb_mate.h
+@@ -0,0 +1,52 @@
++/*
++  HypeBeast, a bughouse team engine built on Fairy-Stockfish
++  Copyright (C) 2026 HypeBeast authors
++
++  This program is free software: you can redistribute it and/or modify
++  it under the terms of the GNU General Public License as published by
++  the Free Software Foundation, either version 3 of the License, or
++  (at your option) any later version.
++*/
++
++// Mate search (HBMateSearch). A proof-number search (df-pn) of one board in
++// which the attacker plays only moves that give check and the defender every
++// legal reply, with the pieces each side holds now. It follows forced lines
++// far deeper than the main search, at a small fixed cost.
++//
++// A result of mate=true is a proof on that board with the present pockets: a
++// piece that reaches the defender later may still break it. mate=false means
++// only that no proof was found within the limits.
++
++#ifndef HB_MATE_H_INCLUDED
++#define HB_MATE_H_INCLUDED
++
++#include <string>
++
++#include "types.h"
++
++namespace Stockfish {
++class Position;
++}
++
++namespace Stockfish::HB::Mate {
++
++struct Result {
++  bool mate = false;        // the side to move at the root mates by checks
++  bool refuted = false;     // searched out: no such mate within maxPly
++  Move first = MOVE_NONE;   // first move of the proof
++  uint64_t nodes = 0;       // moves made
++};
++
++/// Forget what earlier searches stored (start of a go).
++void new_go();
++
++/// Does the side to move in `fen` mate by checks? At most maxNodes moves are
++/// made and lines are cut after maxPly plies.
++Result search(const std::string& fen, uint64_t maxNodes, int maxPly);
++
++/// The same after `m` is played in `fen`: does the side that replies mate?
++Result after(const std::string& fen, Move m, uint64_t maxNodes, int maxPly);
++
++} // namespace Stockfish::HB::Mate
++
++#endif // #ifndef HB_MATE_H_INCLUDED
+diff --git a/engine/src/uci.cpp b/engine/src/uci.cpp
+index e35b4b6..2ff8f10 100644
+--- a/engine/src/uci.cpp
++++ b/engine/src/uci.cpp
+@@ -400,6 +400,7 @@ void UCI::loop(int argc, char* argv[]) {
+       else if (token == "hbprobe")    HB::Arena::hbprobe(is);
+       else if (token == "hbforecast") HB::Arena::hbforecast(is);
+       else if (token == "hbvalues")   HB::Arena::hbvalues(is);
++      else if (token == "hbmate")     HB::Arena::hbmate(is);
+       else if (token == "isready")    sync_cout << "readyok" << sync_endl;
+ 
+       // Additional custom non-UCI commands, mainly for debugging.
+diff --git a/engine/src/ucioption.cpp b/engine/src/ucioption.cpp
+index 762f5b5..1578313 100644
+--- a/engine/src/ucioption.cpp
++++ b/engine/src/ucioption.cpp
+@@ -289,6 +289,17 @@ void init(OptionsMap& o) {
+   o["HBChanceMaxCands"]      << Option(12, 1, 64);       // candidate drop squares per type and node
+   o["HBChanceMaxPerLine"]    << Option(1, 1, 4);         // virtual pieces per side on one line
+   o["HBChanceTable"]         << Option("");              // debug: inject the table, e.g. "+N=90/90,-Q=0/80"
++  // Experiments of 2026-11-20, off. HBMateSearch: a proof-number search of
++  // checks and forced replies (hb_mate.h). A mate found for us is played; a
++  // chosen move that allows one is replaced by the best move that does not.
++  // HBMateNodes: per mil of the go for one such search. HBMatePlies: line length.
++  o["HBMateSearch"]          << Option(false);
++  o["HBMateNodes"]           << Option(20, 1, 500);
++  o["HBMatePlies"]           << Option(40, 2, 200);
++  // HBQuietPlies (0 off): while fewer moves than this have been played on the
++  // two boards together, no prices, forecast, worlds or chance: the main
++  // search has the go, and the team rules still check its move.
++  o["HBQuietPlies"]          << Option(0, 0, 1000);
+   o["Seat"]                  << Option("Awhite", {"Awhite", "Ablack", "Bwhite", "Bblack"});
+   o["Clocks"]                << Option("");
+   // Arena/HiveMind names and semantics: Team white = White on A + Black on B

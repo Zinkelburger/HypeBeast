@@ -1,0 +1,56 @@
+# bench-v1, frozen 2026-11-20: a second sample for repeating a match already played on bench-v1.txt; its openings rank below that set's, so expect fewer decisive pairs
+# DEV: version-against-version HypeBeast matches; tuning allowed, never a strength report
+# chosen by scripts/openings/build_bench.py from 8363 HypeBeast games (65 matches): at least 6 pairs on record, side score 0.35 to 0.65, ranked by how often the pair was decisive
+# 50 openings, 880 pairs on record, 445 decisive against 395 for average openings in the same matches; on matches the choice had not seen, a choice made this way was 1.09 times as decisive as average: about 49% of pairs against 45%
+# measurements per opening: bench-v1.measured.tsv; do not edit or reorder: build the next version instead
+# each line: the first 16 half-moves in played order (engine tokens), then provenance
+1e2e4 1b8c6 1b1c3 2e2e4 1e7e5 2g8f6 1g1f3 2b1c3 1g8f6 2d7d5 1f1e2 2e4d5 2e7e6 1f8e7 2d2d4 2e6d5	fics=3049629 year=2014 date=2014.08.13 swapped=0
+1e2e4 1g8f6 1b1c3 2e2e4 2d7d5 1d7d6 2e4d5 2e7e6 1d2d4 2b1c3 2e6d5 1e7e6 2d2d4 2b8c6 2g1f3 2g8f6	fics=2913795 year=2014 date=2014.02.11 swapped=0
+1g1f3 2d2d4 1e7e6 2e7e5 1d2d4 1b8c6 2g1f3 2e5d4 1c1f4 1g8f6 2f3d4 1e2e3 1d7d6 2b8c6 2b1c3 1f1b5	fics=2915632 year=2014 date=2014.02.14 swapped=0
+2d2d4 2b8c6 1e2e4 1d7d5 1b1c3 2g1f3 2e7e6 1e7e6 2c1f4 2g8f6 1g1f3 2e2e3 2d7d6 1d5e4 2f1b5 2a7a6	fics=3046466 year=2014 date=2014.08.09 swapped=1
+2d2d4 2g8f6 1e2e4 1e7e6 2b1c3 2b8c6 2e2e3 1d2d4 2e7e5 1b8c6 1b1c3 2d4d5 1d7d5 1e4d5 2c6e7 2g1f3	fics=2938886 year=2014 date=2014.03.19 swapped=1
+2e2e4 1e2e4 1g8f6 1b1c3 2g8f6 2d2d3 1b8c6 1g1f3 2d7d5 1d7d5 1e4d5 2e4d5 1f6d5 2f6d5 1d2d4 2b1c3	fics=2893454 year=2014 date=2014.01.22 swapped=0
+2e2e4 1e2e4 2e7e5 1g8f6 2b1c3 1b1c3 2b8c6 2f1c4 1d7d5 2f8e7 1e4d5 1f6d5 2g1f3 1g1f3 2g8f6 2d2d3	fics=2935517 year=2014 date=2014.03.14 swapped=1
+2e2e4 1e2e4 2g8f6 1g8f6 2b1c3 2d7d5 1b1c3 2e4d5 2f6d5 1d7d5 2f1b5 1e4d5 1f6d5 2c8d7 1d2d4 1c8f5	fics=2963675 year=2014 date=2014.04.24 swapped=1
+2e2e4 1g1f3 1b8c6 1e2e4 2e7e6 1g8f6 1b1c3 2d2d4 2d7d6 1d7d5 1e4d5 1f6d5 2c2c4 1d2d4 2g8f6 1c8g4	fics=3010489 year=2014 date=2014.06.28 swapped=1
+2e2e4 2b8c6 1e2e4 2b1c3 2e7e5 1e7e6 2g1f3 1b1c3 2g8f6 1d7d5 2d2d4 1e4d5 1e6d5 2e5d4 1d2d4 2f3d4	fics=2893799 year=2014 date=2014.01.23 swapped=0
+2e2e4 2b8c6 2b1c3 2e7e6 1b1c3 2d2d4 1e7e6 1d2d4 1d7d5 2d7d5 1e2e4 1b8c6 2e4d5 1e4e5 2e6d5 2f1b5	fics=3118725 year=2014 date=2014.11.22 swapped=1
+2g1f3 1e2e4 2e7e5 1e7e6 2f3e5 2b8c6 1d2d4 2e5f7 2e8e7 1b8c6 2e2e4 2e7f7 1g1f3 2d2d4 1f8b4 1b1c3	fics=2919715 year=2014 date=2014.02.19 swapped=1
+2g1f3 1e2e4 2g8f6 1e7e5 2f3e5 1b1c3 1b8c6 1g1f3 2e7e6 1f8c5 2e5f7 1f1e2 2e8f7 1g8f6 1e1g1 2d2d4	fics=2946813 year=2014 date=2014.03.31 swapped=0
+2e2e4 2d7d5 1g1f3 1d7d5 2e4d5 2e7e6 1b1c3 2d5e6 1b8c6 2c8e6 1d2d4 2g1f3 2b8c6 1P@g4 2f1b5 2d8e7	fics=2991408 year=2014 date=2014.05.30 swapped=0
+2d2d4 1e2e4 2e7e5 1d7d5 2g1f3 2e5d4 1b1c3 2d1d4 1g8f6 2b8c6 2d4e4 1e4d5 2f8e7 1P@d4 2b1c3 1P@e5	fics=3051022 year=2014 date=2014.08.15 swapped=1
+2e2e4 1e2e4 2d7d5 1g8f6 1b1c3 2e4d5 1e7e5 2e7e6 2g1f3 1g1f3 1b8c6 2e6d5 2d2d4 1f1c4 2g8f6 2f1e2	fics=2891751 year=2014 date=2014.01.21 swapped=0
+1d2d4 2e2e4 2g8f6 1e7e5 2b1c3 2e7e5 1g1f3 1e5d4 2d2d4 1f3d4 1b8c6 2e5d4 2d1d4 1b1c3 1f8c5 2b8c6	fics=3115101 year=2014 date=2014.11.15 swapped=0
+1e2e4 1e7e6 2e2e4 1b1c3 2d7d5 1d7d6 2b1c3 1g1f3 2e7e6 1b8c6 1d2d4 2e4d5 1g8f6 2e6d5 1c1g5 2d2d4	fics=2938234 year=2014 date=2014.03.18 swapped=0
+1e2e4 2d2d4 1e7e5 2g8f6 1b1c3 2b1c3 2e7e6 1f8c5 1g1f3 2e2e4 1g8f6 1f1c4 1d7d5 2d7d5 2e4e5 1c4d5	fics=3020894 year=2014 date=2014.07.10 swapped=1
+1e2e4 2e2e4 1d7d5 2e7e5 1e4d5 2b1c3 1e7e5 2b8c6 1d5d6 2g1f3 1f8d6 2f8c5 1b1c3 1b8c6 1g1f3 1d6c5	fics=2962248 year=2014 date=2014.04.22 swapped=0
+2b1c3 2e7e6 1e2e4 1e7e6 2d2d4 2b8c6 1b1c3 1d7d5 2e2e4 1e4d5 1e6d5 1f1b5 1b8c6 1d1e2 1f8e7 2g8f6	fics=3082843 year=2014 date=2014.09.28 swapped=0
+2e2e4 1e2e4 1g8f6 1b1c3 1b8c6 2e7e6 1d2d4 2b1c3 2d7d6 2d2d4 2b8c6 2g1f3 1d7d5 1e4d5 2g8f6 2d4d5	fics=3090816 year=2014 date=2014.10.10 swapped=1
+2e2e4 2g8f6 1e2e4 2b1c3 1g8f6 1b1c3 2b8c6 1d7d5 1e4d5 2d2d4 1f6d5 1d2d4 2e7e5 1b8c6 1g1f3 1e7e6	fics=2924560 year=2014 date=2014.02.26 swapped=1
+1e2e4 2e2e4 1b8c6 1b1c3 2e7e6 1g8f6 1g1f3 2d2d4 2d7d5 1e7e6 2e4d5 2g8f6 2b1c3 1e4e5 2f6d5 1f6g4	fics=2965084 year=2014 date=2014.04.25 swapped=0
+2e2e4 1e2e4 2g8f6 2d2d4 1e7e6 2e7e5 2b1c3 1b1c3 1b8c6 1d2d4 2e5d4 1g8f6 1c1g5 2c3d5 2b8c6 1f8e7	fics=2894121 year=2014 date=2014.01.23 swapped=1
+2d2d4 1g1f3 1e7e5 2e7e5 2g1f3 1f3e5 1d7d5 2e5d4 1e5f7 2f3d4 1e8f7 2b8c6 1e2e4 1b8c6 2d4c6 2b7c6	fics=2897552 year=2014 date=2014.01.26 swapped=1
+2d2d4 2g8f6 1d2d4 1d7d5 2g1f3 2b8c6 1b1c3 1e7e6 2c1g5 1c1g5 2h7h6 1d8g5 2e2e3 1e2e4 2h6g5 2f3g5	fics=2918554 year=2014 date=2014.02.17 swapped=1
+2e2e4 1e2e4 2e7e6 1g8f6 2b1c3 1b1c3 2d7d6 2d2d4 1b8c6 2g8f6 1d2d4 1d7d5 2g1f3 1e4d5 2b8c6 1f6d5	fics=2931693 year=2014 date=2014.03.08 swapped=1
+1e2e4 2d2d4 1g8f6 2e7e5 1b1c3 2g1f3 2e5d4 1e7e5 2f3d4 1g1f3 2g8f6 1f8c5 2b1c3 2b8c6 1P@e3 2c1g5	fics=2943995 year=2014 date=2014.03.27 swapped=0
+1d2d4 2e2e4 1e7e5 1b1c3 2c7c5 1e5d4 1d1d4 2d2d4 1b8c6 1d4a4 2c5d4 1g8f6 2g1f3 1g1f3 2b8c6 2f3d4	fics=3074238 year=2014 date=2014.09.16 swapped=0
+1e2e4 1e7e6 2e2e4 1d2d4 2g8f6 1d7d6 2b1c3 1g1f3 1b8c6 2d7d5 1b1c3 2e4d5 1g8f6 1f1d3 2f6d5 2d2d4	fics=2952411 year=2014 date=2014.04.08 swapped=0
+1e2e4 1g8f6 1b1c3 1d7d5 2e2e4 1g1f3 1d5d4 2d7d5 1e4e5 2b1c3 2d5d4 1d4c3 1e5f6 2g1f3 2e7e6 1e7f6	fics=2906309 year=2014 date=2014.02.04 swapped=0
+1e2e4 2d2d4 1d7d5 2e7e6 2b1c3 2b8c6 2e2e4 1e4d5 1e7e6 2f8b4 2g1f3 1d2d4 1e6d5 2d8e7 1b1c3 2f1d3	fics=3058629 year=2014 date=2014.08.24 swapped=1
+1e2e4 2e2e4 1e7e5 1g1f3 2a7a6 1b8c6 2b1c3 1f3e5 2b7b5 1c6e5 2d2d4 1d2d4 1e5c6 2c8b7 1f1c4 2d4d5	fics=3071028 year=2014 date=2014.09.11 swapped=0
+1e2e4 2e2e4 2e7e6 1d7d5 2b1c3 2b8c6 1e4d5 1e7e6 2d2d4 2d7d5 2e4d5 1f1b5 2e6d5 1c8d7 2f1b5 1d5e6	fics=3070444 year=2014 date=2014.09.10 swapped=0
+1e2e4 2e2e4 2g8f6 1g8f6 2b1c3 2b8c6 2g1f3 2e7e5 1b1c3 1d7d5 2f1c4 1e4d5 1f6d5 2f8c5 1g1f3 2e1g1	fics=2948365 year=2014 date=2014.04.02 swapped=1
+2e2e4 1e2e4 2e7e6 1g7g6 2b1c3 2b8c6 1e4e5 2d2d4 1f8g7 2g8f6 1d2d4 2g1f3 1d7d6 1b1c3 2d7d5 1d6e5	fics=2904708 year=2014 date=2014.02.02 swapped=1
+2e2e4 2e7e5 1e2e4 2g1f3 1e7e6 2b8c6 1b1c3 2b1c3 1b8c6 2g8f6 1g1f3 1d7d6 2d2d4 1d2d4 2e5d4 1g8f6	fics=2967308 year=2014 date=2014.04.28 swapped=1
+2d2d4 1e2e4 2e7e5 1g8f6 2d4e5 1b1c3 2b8c6 1b8c6 2g1f3 1g1f3 2d7d6 1P@b4 2c1g5 1e4e5 2f8e7 1b4c3	fics=2873718 year=2014 date=2014.01.04 swapped=1
+1d2d4 2e2e4 1e7e5 2e7e5 1g1f3 2b1c3 1e5d4 2b8c6 1f3d4 2g1f3 1b8c6 2g8f6 2f1c4 1b1c3 2f8e7 1g8f6	fics=2947054 year=2014 date=2014.03.31 swapped=1
+1d2d4 2e2e4 1g8f6 1g1f3 2e7e6 1e7e6 1b1c3 2b1c3 2g8f6 2e4e5 1d7d5 2d7d5 1c1g5 2e5f6 2g7f6 1f8e7	fics=3049662 year=2014 date=2014.08.13 swapped=0
+1e2e4 2e2e4 1d7d5 2e7e5 1e4d5 2b1c3 1d8d5 2b8c6 1b1c3 2f1c4 1d5a5 1g1f3 2f8c5 1g8f6 2g1f3 1d2d3	fics=3082400 year=2014 date=2014.09.28 swapped=1
+1e2e4 2e2e4 1d7d5 2g8f6 1e4d5 2b1c3 1e7e6 2e7e5 1b1c3 2g1f3 2b8c6 1g8f6 2f1c4 1g1f3 2f8c5 2d2d3	fics=3048278 year=2014 date=2014.08.12 swapped=0
+1e2e4 2e2e4 2e7e6 2b1c3 1e7e6 2f8b4 1b1c3 1g8f6 2d2d4 1e4e5 2g8f6 1f6d5 2c1g5 1c3d5 2h7h6 1e6d5	fics=3110421 year=2014 date=2014.11.09 swapped=0
+2e2e4 2e7e6 1e2e4 2b1c3 2d7d6 1e7e6 2g1f3 2g8f6 1d2d4 2d2d4 1b8c6 2b8c6 2c1g5 1d4d5 2f8e7 1e6d5	fics=2883468 year=2014 date=2014.01.12 swapped=1
+2e2e4 2g8f6 2b1c3 1g1f3 2e7e5 2g1f3 1d7d5 1b1c3 2f8c5 2f1c4 1g8f6 2e8g8 2d2d4 1d2d4 1c8f5 2e5d4	fics=3050625 year=2014 date=2014.08.14 swapped=1
+1d2d4 1e7e6 2d2d4 1g1f3 2e7e5 1d7d5 2c2c4 1b1c3 2e5d4 1b8c6 2g1f3 1c1g5 1f8e7 1g5e7 2f8c5 1d8e7	fics=2942083 year=2014 date=2014.03.24 swapped=1
+2d2d4 2e7e6 2b1c3 1b1c3 1e7e6 2c7c5 1d2d4 2e2e4 1g8f6 1e2e4 2c5d4 2c3b5 1f8b4 2b8a6 1g1f3 2b5d4	fics=3105288 year=2014 date=2014.11.01 swapped=1
+1d2d4 2e2e4 2g8f6 1g8f6 1g1f3 2e4e5 1d7d5 2d7d5 1b1c3 1c8f5 2e5f6 1c1g5 2g7f6 1e7e6 2g1f3 1e2e3	fics=2878900 year=2014 date=2014.01.08 swapped=0
+1e2e4 2d2d4 1a7a6 2g8f6 2e2e3 1b1c3 1b7b5 1g1f3 2d7d5 1c8b7 2g1f3 2b8c6 2f1b5 2c8g4 2b5c6 2b7c6	fics=3067225 year=2014 date=2014.09.06 swapped=1

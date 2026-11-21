@@ -265,6 +265,19 @@ def run(worlds: bool) -> None:
     e.setoption("Team", "white")
     e.send("ucinewgame")
 
+    # 12. A type the receiver already holds feeds nothing (v111-v110-g10,
+    # i=123). R@e8+ Bxe8 dxe8=Q+ is the fastest mate; Bxe8 hands white on B a
+    # rook for R@d8 mate, but white on B already holds a rook, so R@e8 is not
+    # exposed and is played (v1.1.1 switched to the slower mate Qxf3).
+    AH = "5k2/pppPn1pp/2n1Q1b1/2p1p2B/2N1P1n1/2N2p2/PPPP1PnP/R1BQ1KR1[NRqqrrbbp] w - - 6 31"
+    BH = "2b1kr2/p1p1Pp1p/2p1pP2/8/3P4/3B4/P1P1KPPP/7r[RBNp] b - - 1 32"
+    lines, rep, s, _ = coord(e, AH, BH, "go movetime 1000", (61600, 67600, 63800, 65400))
+    c = cand(rep, "R@e8") if rep else None
+    check(parse_bestmove(lines)[0] == "R@e8" and (c is None or c["tier"] == 0),
+          "held type: a capture of a type already in hand does not expose the mate",
+          f"{parse_bestmove(lines)} reason={rep and rep['reason']} tier={c and c['tier']}")
+    e.send("ucinewgame")
+
     # 7. Voluntary waiting. A: white (us) in check by Rh1, king can move,
     # a queen would block. B: black (partner) to move, only Kxg7 (a queen).
     AW = "7k/8/8/8/8/8/8/K6r[] w - - 0 1"
