@@ -10,4 +10,5 @@ python3 test_terminal_fixtures.py
 python3 test_probe.py --long
 python3 test_replay_fuzz.py --games "$GAMES" --workers "$WORKERS"
 python3 test_coordinator.py
+python3 test_multipv.py
 python3 smoke_games.py --games 16 --movetime 300 --workers 5
